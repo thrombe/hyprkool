@@ -183,7 +183,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::SwitchToWorkspaceInActivity { name } => {
             let workspace = Workspace::get_active_async().await?;
-            let activity_index = state.get_activity_index(&workspace.name).context("could not get current activity")?;
+            let activity_index = state
+                .get_activity_index(&workspace.name)
+                .context("could not get current activity")?;
             let activity = &state.activities[activity_index];
             let new_workspace = format!("{activity}:{name}");
             Dispatch::call_async(DispatchType::Workspace(
@@ -195,7 +197,10 @@ async fn main() -> anyhow::Result<()> {
             let workspace = Workspace::get_active_async().await?;
             if let Some(activity_index) = state.get_activity_index(&workspace.name) {
                 let activity = &state.activities[activity_index];
-                let id = workspace.name.strip_prefix(activity).expect("just checked this");
+                let id = workspace
+                    .name
+                    .strip_prefix(activity)
+                    .expect("just checked this");
                 name.push_str(id);
             } else {
                 name.push('0');
@@ -207,8 +212,13 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::NextActivity { cycle } => {
             let workspace = Workspace::get_active_async().await?;
-            let mut activity_index = state.get_activity_index(&workspace.name).map(|i| i+1).unwrap_or(0);
-            let id = workspace.name.strip_prefix(&state.activities[activity_index]);
+            let mut activity_index = state
+                .get_activity_index(&workspace.name)
+                .map(|i| i + 1)
+                .unwrap_or(0);
+            let id = workspace
+                .name
+                .strip_prefix(&state.activities[activity_index]);
             if cycle {
                 activity_index %= state.activities.len();
             } else {
@@ -227,8 +237,17 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::PrevActivity { cycle } => {
             let workspace = Workspace::get_active_async().await?;
-            let mut activity_index = state.get_activity_index(&workspace.name).map(|i| i as isize-1).unwrap_or(0);
-            let id = (activity_index >= 0).then(|| workspace.name.strip_prefix(&state.activities[activity_index as usize])).flatten();
+            let mut activity_index = state
+                .get_activity_index(&workspace.name)
+                .map(|i| i as isize - 1)
+                .unwrap_or(0);
+            let id = (activity_index >= 0)
+                .then(|| {
+                    workspace
+                        .name
+                        .strip_prefix(&state.activities[activity_index as usize])
+                })
+                .flatten();
             if cycle {
                 activity_index += state.activities.len() as isize;
                 activity_index %= state.activities.len() as isize;
