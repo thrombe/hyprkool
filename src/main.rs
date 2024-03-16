@@ -172,7 +172,7 @@ async fn main() -> anyhow::Result<()> {
         .config_dir
         .clone()
         .map(PathBuf::from)
-        .or(dirs::config_dir().map(|pb| pb.join("hypr/hyprhypr.toml")))
+        .or(dirs::config_dir().map(|pb| pb.join("hypr/hyprkool.toml")))
         .map(std::fs::read_to_string)
         .transpose()?
         .map(|s| toml::from_str::<Config>(&s))
