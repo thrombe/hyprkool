@@ -205,6 +205,26 @@ async fn main() -> anyhow::Result<()> {
             ))
             .await?;
         }
+        Command::NextActivity { cycle } => {
+            let workspace = Workspace::get_active_async().await?;
+            let mut activity_index = state.get_activity_index(&workspace.name).map(|i| i+1).unwrap_or(0);
+            let id = workspace.name.strip_prefix(&state.activities[activity_index]);
+            if cycle {
+                activity_index %= state.activities.len();
+            } else {
+                activity_index = activity_index.min(state.activities.len() - 1);
+            }
+            let mut name = state.activities[activity_index].clone();
+            if let Some(id) = id {
+                name.push_str(id);
+            } else {
+                name = state.workspaces[activity_index][0].clone();
+            };
+            Dispatch::call_async(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(&name),
+            ))
+            .await?;
+        }
         _ => {
             todo!()
         }
