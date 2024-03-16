@@ -49,41 +49,77 @@ pub enum Command {
     MoveRight {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     MoveLeft {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     MoveUp {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     MoveDown {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     NextActivity {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     PrevActivity {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     SwitchToActivity {
         /// <activity name>
         #[arg(short, long)]
         name: String,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     SwitchToWorkspaceInActivity {
         /// <workspace name>
         #[arg(short, long)]
         name: String,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
     SwitchToWorkspace {
         /// <activity name>:<workspace name>
         #[arg(short, long)]
         name: String,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
     },
 }
 
@@ -156,11 +192,19 @@ impl State {
         Ok(&self.workspaces[activity_index][iy as usize * 3 + ix as usize])
     }
 
-    async fn move_to_workspace(&self, name: &str) -> anyhow::Result<()> {
-        Dispatch::call_async(DispatchType::Workspace(
-            WorkspaceIdentifierWithSpecial::Name(name),
-        ))
-        .await?;
+    async fn move_to_workspace(&self, name: &str, move_window: bool) -> anyhow::Result<()> {
+        if move_window {
+            Dispatch::call_async(DispatchType::MoveToWorkspace(
+                WorkspaceIdentifierWithSpecial::Name(name),
+                None,
+            ))
+            .await?;
+        } else {
+            Dispatch::call_async(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(name),
+            ))
+            .await?;
+        }
         Ok(())
     }
 }
@@ -240,23 +284,26 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Command::SwitchToWorkspace { name } => {
+        Command::SwitchToWorkspace { name, move_window } => {
             let (activity_index, workspace_index) =
                 state.get_indices(&name).context("activity not found")?;
             let workspace_index = workspace_index.context("workspace not found")?;
             let new_workspace = &state.workspaces[activity_index][workspace_index];
-            state.move_to_workspace(&new_workspace).await?;
+            state.move_to_workspace(&new_workspace, move_window).await?;
         }
-        Command::SwitchToWorkspaceInActivity { name } => {
+        Command::SwitchToWorkspaceInActivity { name, move_window } => {
             let workspace = Workspace::get_active_async().await?;
             let activity_index = state
                 .get_activity_index(&workspace.name)
                 .context("could not get current activity")?;
             let activity = &state.activities[activity_index];
             let new_workspace = format!("{activity}:{name}");
-            state.move_to_workspace(&new_workspace).await?;
+            state.move_to_workspace(&new_workspace, move_window).await?;
         }
-        Command::SwitchToActivity { mut name } => {
+        Command::SwitchToActivity {
+            mut name,
+            move_window,
+        } => {
             let workspace = Workspace::get_active_async().await?;
             if let Some(activity_index) = state.get_activity_index(&workspace.name) {
                 let activity = &state.activities[activity_index];
@@ -268,9 +315,9 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name.push('0');
             };
-            state.move_to_workspace(&name).await?;
+            state.move_to_workspace(&name, move_window).await?;
         }
-        Command::NextActivity { cycle } => {
+        Command::NextActivity { cycle, move_window } => {
             let workspace = Workspace::get_active_async().await?;
             let mut activity_index = state
                 .get_activity_index(&workspace.name)
@@ -290,9 +337,9 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name = state.workspaces[activity_index][0].clone();
             };
-            state.move_to_workspace(&name).await?;
+            state.move_to_workspace(&name, move_window).await?;
         }
-        Command::PrevActivity { cycle } => {
+        Command::PrevActivity { cycle, move_window } => {
             let workspace = Workspace::get_active_async().await?;
             let mut activity_index = state
                 .get_activity_index(&workspace.name)
@@ -318,23 +365,23 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name = state.workspaces[activity_index][0].clone();
             };
-            state.move_to_workspace(&name).await?;
+            state.move_to_workspace(&name, move_window).await?;
         }
-        Command::MoveRight { cycle } => {
+        Command::MoveRight { cycle, move_window } => {
             let workspace = state.moved_workspace(1, 0, cycle).await?;
-            state.move_to_workspace(workspace).await?;
+            state.move_to_workspace(workspace, move_window).await?;
         }
-        Command::MoveLeft { cycle } => {
+        Command::MoveLeft { cycle, move_window } => {
             let workspace = state.moved_workspace(-1, 0, cycle).await?;
-            state.move_to_workspace(workspace).await?;
+            state.move_to_workspace(workspace, move_window).await?;
         }
-        Command::MoveUp { cycle } => {
+        Command::MoveUp { cycle, move_window } => {
             let workspace = state.moved_workspace(0, -1, cycle).await?;
-            state.move_to_workspace(workspace).await?;
+            state.move_to_workspace(workspace, move_window).await?;
         }
-        Command::MoveDown { cycle } => {
+        Command::MoveDown { cycle, move_window } => {
             let workspace = state.moved_workspace(0, 1, cycle).await?;
-            state.move_to_workspace(workspace).await?;
+            state.move_to_workspace(workspace, move_window).await?;
         }
     }
 
