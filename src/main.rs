@@ -21,19 +21,42 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     MouseLoop,
-    MoveRight,
-    MoveLeft,
-    MoveUp,
-    MoveDown,
-    NextActivity,
-    PrevActivity,
-    SwitchActivity {
-        /// activity name
+    MoveRight {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+    },
+    MoveLeft {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+    },
+    MoveUp {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+    },
+    MoveDown {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+    },
+    NextActivity {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+    },
+    PrevActivity {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+    },
+    SwitchToActivity {
+        /// <activity name>
+        #[arg(short, long)]
+        name: String,
+    },
+    SwitchToWorkspaceInActivity {
+        /// <workspace name>
         #[arg(short, long)]
         name: String,
     },
     SwitchToWorkspace {
-        /// workspace name
+        /// <activity name>:<workspace name>
         #[arg(short, long)]
         name: String,
     },
@@ -158,12 +181,25 @@ async fn main() -> anyhow::Result<()> {
             ))
             .await?;
         }
-        Command::SwitchActivity { mut name } => {
+        Command::SwitchToWorkspaceInActivity { name } => {
             let workspace = Workspace::get_active_async().await?;
             let activity_index = state.get_activity_index(&workspace.name).context("could not get current activity")?;
             let activity = &state.activities[activity_index];
-            let id = workspace.name.strip_prefix(activity).expect("just checked this");
-            name.push_str(id);
+            let new_workspace = format!("{activity}:{name}");
+            Dispatch::call_async(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(&new_workspace),
+            ))
+            .await?;
+        }
+        Command::SwitchToActivity { mut name } => {
+            let workspace = Workspace::get_active_async().await?;
+            if let Some(activity_index) = state.get_activity_index(&workspace.name) {
+                let activity = &state.activities[activity_index];
+                let id = workspace.name.strip_prefix(activity).expect("just checked this");
+                name.push_str(id);
+            } else {
+                name.push('0');
+            };
             Dispatch::call_async(DispatchType::Workspace(
                 WorkspaceIdentifierWithSpecial::Name(&name),
             ))
