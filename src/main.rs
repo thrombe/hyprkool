@@ -225,6 +225,28 @@ async fn main() -> anyhow::Result<()> {
             ))
             .await?;
         }
+        Command::PrevActivity { cycle } => {
+            let workspace = Workspace::get_active_async().await?;
+            let mut activity_index = state.get_activity_index(&workspace.name).map(|i| i as isize-1).unwrap_or(0);
+            let id = (activity_index >= 0).then(|| workspace.name.strip_prefix(&state.activities[activity_index as usize])).flatten();
+            if cycle {
+                activity_index += state.activities.len() as isize;
+                activity_index %= state.activities.len() as isize;
+            } else {
+                activity_index = activity_index.max(0);
+            }
+            let activity_index = activity_index as usize;
+            let mut name = state.activities[activity_index].clone();
+            if let Some(id) = id {
+                name.push_str(id);
+            } else {
+                name = state.workspaces[activity_index][0].clone();
+            };
+            Dispatch::call_async(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(&name),
+            ))
+            .await?;
+        }
         _ => {
             todo!()
         }
