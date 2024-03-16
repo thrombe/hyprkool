@@ -1,11 +1,13 @@
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Context};
 use clap::{arg, command, Parser, Subcommand};
 use hyprland::{
     data::{CursorPosition, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
-    event_listener::EventListener,
     shared::{HyprData, HyprDataActive},
 };
+use serde::Deserialize;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -16,6 +18,29 @@ struct Cli {
 
     #[command(subcommand)]
     pub command: Command,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Config {
+    // pub workspace_names: Vec<String>,
+    pub activities: Vec<String>,
+
+    /// mouse polling rate in ms
+    pub polling_rate: u64,
+    /// number of pixels to consider as edge
+    pub edge_width: u64,
+    /// push cursor inside margin when it loops
+    pub edge_margin: u64,
+}
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            activities: vec!["default".into()],
+            polling_rate: 300,
+            edge_width: 0,
+            edge_margin: 2,
+        }
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -66,15 +91,16 @@ pub enum Command {
 pub struct State {
     pub activities: Vec<String>,
     pub workspaces: Vec<Vec<String>>,
+    pub config: Config,
 }
 
 impl State {
-    fn new() -> Self {
+    fn new(config: Config) -> Self {
         let raw_workspaces = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-        let activities = ["issac", "colg"]
-            .into_iter()
-            .map(String::from)
-            .collect::<Vec<_>>();
+        let mut activities = config.activities.clone();
+        if activities.is_empty() {
+            activities.push("default".into());
+        }
         let cooked_workspaces = activities
             .iter()
             .map(|name| {
@@ -89,6 +115,7 @@ impl State {
         Self {
             activities,
             workspaces: cooked_workspaces,
+            config,
         }
     }
 
@@ -141,7 +168,17 @@ impl State {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let state = State::new();
+    let config = cli
+        .config_dir
+        .clone()
+        .map(PathBuf::from)
+        .or(dirs::config_dir().map(|pb| pb.join("hypr/hyprhypr.toml")))
+        .map(std::fs::read_to_string)
+        .transpose()?
+        .map(|s| toml::from_str::<Config>(&s))
+        .transpose()?
+        .unwrap_or(Config::default());
+    let state = State::new(config);
 
     match cli.command {
         Command::MouseLoop => {
@@ -152,23 +189,26 @@ async fn main() -> anyhow::Result<()> {
 
             // TODO: multi monitor setup yaaaaaaaaaaaaaaaaa
             let monitor = Monitor::get_active_async().await?;
+            let w = state.config.edge_width as i64;
+            let m = state.config.edge_margin as i64;
 
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(state.config.polling_rate))
+                    .await;
                 let mut c = CursorPosition::get_async().await?;
                 let mut y = 0;
                 let mut x = 0;
-                if c.x == 0 {
+                if c.x <= w {
                     x += 3 - 1;
-                    c.x = monitor.width as i64 - 2;
-                } else if c.x == monitor.width as i64 - 1 {
+                    c.x = monitor.width as i64 - m;
+                } else if c.x >= monitor.width as i64 - 1 - w {
                     x += 1;
                     c.x = 2;
                 }
-                if c.y == 0 {
+                if c.y <= w {
                     y += 3 - 1;
-                    c.y = monitor.height as i64 - 2;
-                } else if c.y == monitor.height as i64 - 1 {
+                    c.y = monitor.height as i64 - m;
+                } else if c.y >= monitor.height as i64 - 1 - w {
                     y += 1;
                     c.y = 2;
                 }

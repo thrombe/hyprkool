@@ -8,5 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.81"
 clap = { version = "4.5.3", features = ["derive"] }
+dirs = "5.0.1"
 hyprland = "0.3.13"
+serde = { version = "1.0.197", features = ["derive"] }
 tokio = { version = "1.36.0", features = ["full"] }
+toml = "0.8.11"
