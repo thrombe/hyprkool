@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use clap::{arg, command, Parser, Subcommand};
 use hyprland::{
     data::{CursorPosition, Monitor, Workspace},
@@ -107,6 +107,35 @@ impl State {
             .position(|w| w == name);
         Some((activity_index, workspace_index))
     }
+
+    async fn moved_workspace(&self, x: i64, y: i64, cycle: bool) -> anyhow::Result<&str> {
+        let workspace = Workspace::get_active_async().await?;
+        let Some((activity_index, Some(workspace_index))) = self.get_indices(workspace.name) else {
+            return Err(anyhow!("Error: not in a valid activity workspace"));
+        };
+        let mut iy = workspace_index as i64 / 3;
+        let mut ix = workspace_index as i64 % 3;
+        if cycle {
+            ix += x + 3;
+            ix %= 3;
+            iy += y + 3;
+            iy %= 3;
+        } else {
+            ix += x;
+            ix = ix.max(0).min(2);
+            iy += y;
+            iy = iy.max(0).min(2);
+        }
+        Ok(&self.workspaces[activity_index][iy as usize * 3 + ix as usize])
+    }
+
+    async fn move_to_workspace(&self, name: &str) -> anyhow::Result<()> {
+        Dispatch::call_async(DispatchType::Workspace(
+            WorkspaceIdentifierWithSpecial::Name(name),
+        ))
+        .await?;
+        Ok(())
+    }
 }
 
 #[tokio::main]
@@ -176,10 +205,7 @@ async fn main() -> anyhow::Result<()> {
                 state.get_indices(&name).context("activity not found")?;
             let workspace_index = workspace_index.context("workspace not found")?;
             let new_workspace = &state.workspaces[activity_index][workspace_index];
-            Dispatch::call_async(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Name(new_workspace),
-            ))
-            .await?;
+            state.move_to_workspace(&new_workspace).await?;
         }
         Command::SwitchToWorkspaceInActivity { name } => {
             let workspace = Workspace::get_active_async().await?;
@@ -188,10 +214,7 @@ async fn main() -> anyhow::Result<()> {
                 .context("could not get current activity")?;
             let activity = &state.activities[activity_index];
             let new_workspace = format!("{activity}:{name}");
-            Dispatch::call_async(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Name(&new_workspace),
-            ))
-            .await?;
+            state.move_to_workspace(&new_workspace).await?;
         }
         Command::SwitchToActivity { mut name } => {
             let workspace = Workspace::get_active_async().await?;
@@ -205,10 +228,7 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name.push('0');
             };
-            Dispatch::call_async(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Name(&name),
-            ))
-            .await?;
+            state.move_to_workspace(&name).await?;
         }
         Command::NextActivity { cycle } => {
             let workspace = Workspace::get_active_async().await?;
@@ -230,10 +250,7 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name = state.workspaces[activity_index][0].clone();
             };
-            Dispatch::call_async(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Name(&name),
-            ))
-            .await?;
+            state.move_to_workspace(&name).await?;
         }
         Command::PrevActivity { cycle } => {
             let workspace = Workspace::get_active_async().await?;
@@ -261,13 +278,23 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name = state.workspaces[activity_index][0].clone();
             };
-            Dispatch::call_async(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Name(&name),
-            ))
-            .await?;
+            state.move_to_workspace(&name).await?;
         }
-        _ => {
-            todo!()
+        Command::MoveRight { cycle } => {
+            let workspace = state.moved_workspace(1, 0, cycle).await?;
+            state.move_to_workspace(workspace).await?;
+        }
+        Command::MoveLeft { cycle } => {
+            let workspace = state.moved_workspace(-1, 0, cycle).await?;
+            state.move_to_workspace(workspace).await?;
+        }
+        Command::MoveUp { cycle } => {
+            let workspace = state.moved_workspace(0, -1, cycle).await?;
+            state.move_to_workspace(workspace).await?;
+        }
+        Command::MoveDown { cycle } => {
+            let workspace = state.moved_workspace(0, 1, cycle).await?;
+            state.move_to_workspace(workspace).await?;
         }
     }
 
