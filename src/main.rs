@@ -158,6 +158,17 @@ async fn main() -> anyhow::Result<()> {
             ))
             .await?;
         }
+        Command::SwitchActivity { mut name } => {
+            let workspace = Workspace::get_active_async().await?;
+            let activity_index = state.get_activity_index(&workspace.name).context("could not get current activity")?;
+            let activity = &state.activities[activity_index];
+            let id = workspace.name.strip_prefix(activity).expect("just checked this");
+            name.push_str(id);
+            Dispatch::call_async(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(&name),
+            ))
+            .await?;
+        }
         _ => {
             todo!()
         }
