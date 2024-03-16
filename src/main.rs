@@ -289,7 +289,7 @@ async fn main() -> anyhow::Result<()> {
                 state.get_indices(&name).context("activity not found")?;
             let workspace_index = workspace_index.context("workspace not found")?;
             let new_workspace = &state.workspaces[activity_index][workspace_index];
-            state.move_to_workspace(&new_workspace, move_window).await?;
+            state.move_to_workspace(new_workspace, move_window).await?;
         }
         Command::SwitchToWorkspaceInActivity { name, move_window } => {
             let workspace = Workspace::get_active_async().await?;
@@ -319,46 +319,45 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::NextActivity { cycle, move_window } => {
             let workspace = Workspace::get_active_async().await?;
-            let mut activity_index = state
-                .get_activity_index(&workspace.name)
-                .map(|i| i + 1)
+            let activity_index = state.get_activity_index(&workspace.name);
+            let new_activity_index = activity_index
+                .map(|i| {
+                    let mut i = i;
+                    if cycle {
+                        i += 1;
+                        i %= state.activities.len();
+                    } else {
+                        i = i.min(state.activities.len() - 1);
+                    }
+                    i
+                })
                 .unwrap_or(0);
-            let id = workspace
-                .name
-                .strip_prefix(&state.activities[activity_index]);
-            if cycle {
-                activity_index %= state.activities.len();
-            } else {
-                activity_index = activity_index.min(state.activities.len() - 1);
-            }
-            let mut name = state.activities[activity_index].clone();
+            let id = activity_index.and_then(|i| workspace.name.strip_prefix(&state.activities[i]));
+            let mut name = state.activities[new_activity_index].clone();
             if let Some(id) = id {
                 name.push_str(id);
             } else {
-                name = state.workspaces[activity_index][0].clone();
+                name = state.workspaces[new_activity_index][0].clone();
             };
             state.move_to_workspace(&name, move_window).await?;
         }
         Command::PrevActivity { cycle, move_window } => {
             let workspace = Workspace::get_active_async().await?;
-            let mut activity_index = state
-                .get_activity_index(&workspace.name)
-                .map(|i| i as isize - 1)
-                .unwrap_or(0);
-            let id = (activity_index >= 0)
-                .then(|| {
-                    workspace
-                        .name
-                        .strip_prefix(&state.activities[activity_index as usize])
+            let activity_index = state.get_activity_index(&workspace.name);
+            let new_activity_index = activity_index
+                .map(|i| {
+                    let mut i = i as isize;
+                    if cycle {
+                        i += state.activities.len() as isize - 1;
+                        i %= state.activities.len() as isize;
+                    } else {
+                        i = i.max(0);
+                    }
+                    i as usize
                 })
-                .flatten();
-            if cycle {
-                activity_index += state.activities.len() as isize;
-                activity_index %= state.activities.len() as isize;
-            } else {
-                activity_index = activity_index.max(0);
-            }
-            let activity_index = activity_index as usize;
+                .unwrap_or(0);
+            let id = activity_index.and_then(|i| workspace.name.strip_prefix(&state.activities[i]));
+            let activity_index = new_activity_index;
             let mut name = state.activities[activity_index].clone();
             if let Some(id) = id {
                 name.push_str(id);
