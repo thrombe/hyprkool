@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Context};
 use clap::{arg, command, Parser, Subcommand};
 use hyprland::{
-    data::{Client, CursorPosition, Monitor, Workspace},
+    data::{Client, Clients, CursorPosition, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     event_listener::EventListener,
     shared::{HyprData, HyprDataActive, HyprDataActiveOptional, WorkspaceType},
@@ -484,7 +484,13 @@ async fn main() -> anyhow::Result<()> {
 
             if window.workspace.name == special_workspace {
                 if silent {
-                    state.move_window_to_workspace(active_workspace).await?;
+                    let windows = Clients::get_async().await?;
+                    let c = windows.iter().filter(|w| w.workspace.id == window.workspace.id).count();
+                    if c == 1 {
+                        state.move_to_workspace(active_workspace, true).await?;
+                    } else {
+                        state.move_window_to_workspace(active_workspace).await?;
+                    }
                 } else {
                     state.move_to_workspace(active_workspace, true).await?;
                 }
