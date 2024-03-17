@@ -205,7 +205,11 @@ impl State {
         Ok(&self.workspaces[activity_index][iy as usize * 3 + ix as usize])
     }
 
-    async fn move_to_workspace(&self, name: impl AsRef<str>, move_window: bool) -> anyhow::Result<()> {
+    async fn move_to_workspace(
+        &self,
+        name: impl AsRef<str>,
+        move_window: bool,
+    ) -> anyhow::Result<()> {
         let name = name.as_ref();
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
@@ -471,12 +475,18 @@ async fn main() -> anyhow::Result<()> {
             });
             ael.start_listener_async().await?;
         }
-        Command::ToggleSpecialWorkspace { name, move_window, silent } => {
+        Command::ToggleSpecialWorkspace {
+            name,
+            move_window,
+            silent,
+        } => {
             if !move_window {
                 state.toggle_special_workspace(name).await?;
-                return Ok(())
+                return Ok(());
             }
-            let window = Client::get_active_async().await?.context("No active window")?;
+            let window = Client::get_active_async()
+                .await?
+                .context("No active window")?;
             let workspace = Workspace::get_active_async().await?;
 
             let special_workspace = format!("special:{}", &name);
@@ -485,7 +495,10 @@ async fn main() -> anyhow::Result<()> {
             if window.workspace.name == special_workspace {
                 if silent {
                     let windows = Clients::get_async().await?;
-                    let c = windows.iter().filter(|w| w.workspace.id == window.workspace.id).count();
+                    let c = windows
+                        .iter()
+                        .filter(|w| w.workspace.id == window.workspace.id)
+                        .count();
                     if c == 1 {
                         state.move_to_workspace(active_workspace, true).await?;
                     } else {
