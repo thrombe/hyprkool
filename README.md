@@ -24,7 +24,7 @@ cargo install --path .
 
 ## Nix
 Try it out
-```
+```nix
 nix run github:thrombe/hyprkool
 ```
 
@@ -49,7 +49,8 @@ Else add the following to your nix flake
 }
 ```
 
-# Example Config
+# Example Configs
+## Configure hyprkool
 ~/.config/hypr/hyprkool.toml
 ```toml
 # activity names (first activity is treated as default)
@@ -65,6 +66,7 @@ edge_width = 0
 edge_margin = 2
 ```
 
+## Hyprland config
 ~/.config/hypr/hyprland.conf
 ```conf
 animations {
@@ -99,7 +101,7 @@ bind = $mainMod CTRL, k, exec, hyprkool move-up -c -w
 exec-once = hyprkool mouse-loop
 ```
 
-# Waybar config for a simple workspace indicator
+## Waybar config for a simple workspace indicator
 it simply uses the unicode Full block characters '█' to show activities.
 it looks something like this
 <br>
