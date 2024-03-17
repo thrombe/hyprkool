@@ -25,6 +25,7 @@ struct Cli {
 pub struct Config {
     // pub workspace_names: Vec<String>,
     pub activities: Vec<String>,
+    pub workspaces: (u32, u32),
 
     /// mouse polling rate in ms
     pub polling_rate: u64,
@@ -37,6 +38,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             activities: vec!["default".into()],
+            workspaces: (2, 2),
             polling_rate: 300,
             edge_width: 0,
             edge_margin: 2,
@@ -145,7 +147,8 @@ pub struct State {
 
 impl State {
     fn new(config: Config) -> Self {
-        let raw_workspaces = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let (x, y) = config.workspaces;
+        let raw_workspaces = (0..y).flat_map(|y| (0..x).map(move |x| (x, y)));
         let mut activities = config.activities.clone();
         if activities.is_empty() {
             activities.push("default".into());
@@ -154,9 +157,8 @@ impl State {
             .iter()
             .map(|name| {
                 raw_workspaces
-                    .iter()
-                    .cloned()
-                    .map(|id| format!("{name}:{id}"))
+                    .clone()
+                    .map(|(x, y)| format!("{name}:({x} {y})"))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -189,20 +191,22 @@ impl State {
         let Some((activity_index, Some(workspace_index))) = self.get_indices(workspace.name) else {
             return Err(anyhow!("Error: not in a valid activity workspace"));
         };
-        let mut iy = workspace_index as i64 / 3;
-        let mut ix = workspace_index as i64 % 3;
+        let nx = self.config.workspaces.0 as i64;
+        let ny = self.config.workspaces.1 as i64;
+        let mut iy = workspace_index as i64 / ny;
+        let mut ix = workspace_index as i64 % nx;
         if cycle {
-            ix += x + 3;
-            ix %= 3;
-            iy += y + 3;
-            iy %= 3;
+            ix += x + nx;
+            ix %= nx;
+            iy += y + ny;
+            iy %= ny;
         } else {
             ix += x;
-            ix = ix.max(0).min(2);
+            ix = ix.max(0).min(nx - 1);
             iy += y;
-            iy = iy.max(0).min(2);
+            iy = iy.max(0).min(ny - 1);
         }
-        Ok(&self.workspaces[activity_index][iy as usize * 3 + ix as usize])
+        Ok(&self.workspaces[activity_index][(iy * nx + ix) as usize])
     }
 
     async fn move_to_workspace(
@@ -257,9 +261,11 @@ impl State {
         };
 
         let mut activity = String::new();
+        let nx = self.config.workspaces.0 as usize;
+        let n = self.workspaces[activity_index].len();
         for (i, _) in self.workspaces[activity_index].iter().enumerate() {
             if i == 0 {
-            } else if i % 3 == 0 && i > 0 && i < 9 {
+            } else if i % nx == 0 && i > 0 && i < n {
                 activity += "\n";
             } else {
                 activity += " ";
@@ -288,6 +294,12 @@ async fn main() -> anyhow::Result<()> {
         .map(|s| toml::from_str::<Config>(&s))
         .transpose()?
         .unwrap_or(Config::default());
+    match config.workspaces {
+        (0, _) | (_, 0) => {
+            return Err(anyhow!("Use non zero workspace grid dimentions in config"));
+        }
+        _ => (),
+    }
     let state = State::new(config);
 
     match cli.command {
@@ -305,18 +317,20 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(state.config.polling_rate))
                     .await;
+                let nx = state.config.workspaces.0 as usize;
+                let ny = state.config.workspaces.1 as usize;
                 let mut c = CursorPosition::get_async().await?;
                 let mut y = 0;
                 let mut x = 0;
                 if c.x <= w {
-                    x += 3 - 1;
+                    x += nx - 1;
                     c.x = monitor.width as i64 - m;
                 } else if c.x >= monitor.width as i64 - 1 - w {
                     x += 1;
                     c.x = m;
                 }
                 if c.y <= w {
-                    y += 3 - 1;
+                    y += ny - 1;
                     c.y = monitor.height as i64 - m;
                 } else if c.y >= monitor.height as i64 - 1 - w {
                     y += 1;
@@ -335,12 +349,12 @@ async fn main() -> anyhow::Result<()> {
                     continue;
                 };
 
-                y += current_workspace_index / 3;
-                y %= 3;
-                x += current_workspace_index % 3;
-                x %= 3;
+                y += current_workspace_index / nx;
+                y %= ny;
+                x += current_workspace_index % nx;
+                x %= nx;
 
-                let new_workspace = &state.workspaces[current_activity_index][y * 3 + x];
+                let new_workspace = &state.workspaces[current_activity_index][y * nx + x];
                 if new_workspace != &workspace.name {
                     state.move_to_workspace(new_workspace, false).await?;
                     Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
@@ -500,6 +514,7 @@ async fn main() -> anyhow::Result<()> {
                         .filter(|w| w.workspace.id == window.workspace.id)
                         .count();
                     if c == 1 {
+                        // keep focus if moving the last window from special to active workspace
                         state.move_to_workspace(active_workspace, true).await?;
                     } else {
                         state.move_window_to_workspace(active_workspace).await?;
