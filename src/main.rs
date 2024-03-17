@@ -25,6 +25,13 @@ struct Cli {
 pub struct Config {
     // pub workspace_names: Vec<String>,
     pub activities: Vec<String>,
+    pub enable_animations: bool,
+    pub animation_duration: u64,
+    pub workspace_switch_animation_curve: Option<String>,
+    pub workspace_horizontal_switch_animation_style: Option<String>,
+    pub workspace_vertical_switch_animation_style: Option<String>,
+    pub acitvity_switch_animation_curve: Option<String>,
+    pub acitvity_switch_animation_style: Option<String>,
 
     /// mouse polling rate in ms
     pub polling_rate: u64,
@@ -37,6 +44,13 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             activities: vec!["default".into()],
+            enable_animations: true,
+            animation_duration: 6,
+            workspace_switch_animation_curve: None,
+            workspace_horizontal_switch_animation_style: None,
+            workspace_vertical_switch_animation_style: None,
+            acitvity_switch_animation_curve: None,
+            acitvity_switch_animation_style: None,
             polling_rate: 300,
             edge_width: 0,
             edge_margin: 2,
@@ -233,6 +247,75 @@ impl State {
 
         Some(activity)
     }
+
+    async fn set_animation_vertical(&self) -> anyhow::Result<()> {
+        let Some(curve) = self.config.workspace_switch_animation_curve.as_deref() else {
+            return Ok(());
+        };
+        let mut command = tokio::process::Command::new("hyprctl");
+        command.args([
+            "keyword",
+            "animation",
+            &format!(
+                "workspaces,{},{},{},{}",
+                if self.config.enable_animations { 1 } else { 0 },
+                self.config.animation_duration,
+                curve,
+                self.config
+                    .workspace_vertical_switch_animation_style
+                    .as_deref()
+                    .unwrap_or(""),
+            ),
+        ]);
+        let _ = command.output().await?;
+        Ok(())
+    }
+
+    async fn set_animation_horizontal(&self) -> anyhow::Result<()> {
+        let Some(curve) = self.config.workspace_switch_animation_curve.as_deref() else {
+            return Ok(());
+        };
+        let mut command = tokio::process::Command::new("hyprctl");
+        command.args([
+            "keyword",
+            "animation",
+            &format!(
+                "workspaces,{},{},{},{}",
+                if self.config.enable_animations { 1 } else { 0 },
+                self.config.animation_duration,
+                curve,
+                self.config
+                    .workspace_horizontal_switch_animation_style
+                    .as_deref()
+                    .unwrap_or(""),
+            ),
+        ]);
+        let _ = command.output().await?;
+        Ok(())
+    }
+
+    async fn set_activity_animation(&self) -> anyhow::Result<()> {
+        let Some(curve) = self.config.acitvity_switch_animation_curve.as_deref() else {
+            return Ok(());
+        };
+        let mut command = tokio::process::Command::new("hyprctl");
+        command.args([
+            "keyword",
+            "animation",
+            &format!(
+                "workspaces,{},{},{},{}",
+                if self.config.enable_animations { 1 } else { 0 },
+                self.config.animation_duration,
+                curve,
+                self.config
+                    .acitvity_switch_animation_style
+                    .as_deref()
+                    .unwrap_or(""),
+            ),
+        ]);
+        let _ = command.output().await?;
+        Ok(())
+    }
 }
 
 #[tokio::main]
@@ -295,6 +378,8 @@ async fn main() -> anyhow::Result<()> {
                     continue;
                 };
 
+                let move_vert = y > 0;
+                let move_hor = x > 0;
                 y += current_workspace_index / 3;
                 y %= 3;
                 x += current_workspace_index % 3;
@@ -302,6 +387,11 @@ async fn main() -> anyhow::Result<()> {
 
                 let new_workspace = &state.workspaces[current_activity_index][y * 3 + x];
                 if new_workspace != &workspace.name {
+                    if move_hor {
+                        state.set_animation_horizontal().await?;
+                    } else if move_vert {
+                        state.set_animation_vertical().await?;
+                    }
                     state.move_to_workspace(new_workspace, false).await?;
                     Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
                 }
@@ -312,6 +402,7 @@ async fn main() -> anyhow::Result<()> {
                 state.get_indices(&name).context("activity not found")?;
             let workspace_index = workspace_index.context("workspace not found")?;
             let new_workspace = &state.workspaces[activity_index][workspace_index];
+            state.set_activity_animation().await?;
             state.move_to_workspace(new_workspace, move_window).await?;
         }
         Command::SwitchToWorkspaceInActivity { name, move_window } => {
@@ -321,6 +412,7 @@ async fn main() -> anyhow::Result<()> {
                 .context("could not get current activity")?;
             let activity = &state.activities[activity_index];
             let new_workspace = format!("{activity}:{name}");
+            state.set_activity_animation().await?;
             state.move_to_workspace(&new_workspace, move_window).await?;
         }
         Command::SwitchToActivity {
@@ -338,6 +430,7 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name.push('0');
             };
+            state.set_activity_animation().await?;
             state.move_to_workspace(&name, move_window).await?;
         }
         Command::NextActivity { cycle, move_window } => {
@@ -362,6 +455,7 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name = state.workspaces[new_activity_index][0].clone();
             };
+            state.set_activity_animation().await?;
             state.move_to_workspace(&name, move_window).await?;
         }
         Command::PrevActivity { cycle, move_window } => {
@@ -387,22 +481,27 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 name = state.workspaces[activity_index][0].clone();
             };
+            state.set_activity_animation().await?;
             state.move_to_workspace(&name, move_window).await?;
         }
         Command::MoveRight { cycle, move_window } => {
             let workspace = state.moved_workspace(1, 0, cycle).await?;
+            state.set_animation_horizontal().await?;
             state.move_to_workspace(workspace, move_window).await?;
         }
         Command::MoveLeft { cycle, move_window } => {
             let workspace = state.moved_workspace(-1, 0, cycle).await?;
+            state.set_animation_horizontal().await?;
             state.move_to_workspace(workspace, move_window).await?;
         }
         Command::MoveUp { cycle, move_window } => {
             let workspace = state.moved_workspace(0, -1, cycle).await?;
+            state.set_animation_vertical().await?;
             state.move_to_workspace(workspace, move_window).await?;
         }
         Command::MoveDown { cycle, move_window } => {
             let workspace = state.moved_workspace(0, 1, cycle).await?;
+            state.set_animation_vertical().await?;
             state.move_to_workspace(workspace, move_window).await?;
         }
         Command::PrintActivityStatus => {
