@@ -23,8 +23,8 @@ struct Cli {
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    // pub workspace_names: Vec<String>,
     pub activities: Vec<String>,
+    /// number of workspaces in x and y dimensions
     pub workspaces: (u32, u32),
 
     /// mouse polling rate in ms
@@ -148,7 +148,7 @@ pub struct State {
 impl State {
     fn new(config: Config) -> Self {
         let (x, y) = config.workspaces;
-        let raw_workspaces = (0..y).flat_map(|y| (0..x).map(move |x| (x, y)));
+        let raw_workspaces = (1..=y).flat_map(|y| (1..=x).map(move |x| (x, y)));
         let mut activities = config.activities.clone();
         if activities.is_empty() {
             activities.push("default".into());
@@ -193,7 +193,7 @@ impl State {
         };
         let nx = self.config.workspaces.0 as i64;
         let ny = self.config.workspaces.1 as i64;
-        let mut iy = workspace_index as i64 / ny;
+        let mut iy = workspace_index as i64 / nx;
         let mut ix = workspace_index as i64 % nx;
         if cycle {
             ix += x + nx;
