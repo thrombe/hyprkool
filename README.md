@@ -7,7 +7,6 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 - a super simple workspace indicator using waybar
 
 # Limitations
-- fixed 9 workspaces per activity
 - hyprland plugins can not yet control animation directionality
 
 # todo
@@ -15,7 +14,7 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 - [ ] better animations support
 - [ ] a good window maximise implementation that keeps other windows
   in current workspace behind the active one instead of hiding it
-- [ ] general (x, y) grid
+- [ x ] general (x, y) grid
   - [ ] (x, y) grid per activity
 - [ ] named workspaces
   - [ ] named workspaces per activity
@@ -61,6 +60,9 @@ Else add the following to your nix flake
 ```toml
 # activity names (first activity is treated as default)
 activities = ["my-default-activity", "my-activity"]
+
+# number of workspaces in x and y dimensions
+workspaces = [2, 2]
 
 # how often to poll for cursor position
 polling_rate = 300 # in ms
