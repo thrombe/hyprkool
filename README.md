@@ -102,6 +102,7 @@ exec-once = hyprkool mouse-loop
 # Waybar config for a simple workspace indicator
 it simply uses the unicode Full block characters '█' to show activities.
 it looks something like this
+<br>
 ![activity status indicator](./screenshots/activity_status.png)
 
 ~/.config/waybar/config
