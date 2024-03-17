@@ -232,6 +232,16 @@ impl State {
         Ok(())
     }
 
+    async fn move_window_to_special_workspace(&self, name: impl AsRef<str>) -> anyhow::Result<()> {
+        let name = name.as_ref();
+        Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+            WorkspaceIdentifierWithSpecial::Special(Some(name)),
+            None,
+        ))
+        .await?;
+        Ok(())
+    }
+
     async fn toggle_special_workspace(&self, name: String) -> anyhow::Result<()> {
         Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
         Ok(())
@@ -473,12 +483,13 @@ async fn main() -> anyhow::Result<()> {
             let active_workspace = &workspace.name;
 
             if window.workspace.name == special_workspace {
-                state.move_window_to_workspace(active_workspace).await?;
-                if !silent {
-                    state.move_to_workspace(active_workspace, false).await?;
+                if silent {
+                    state.move_window_to_workspace(active_workspace).await?;
+                } else {
+                    state.move_to_workspace(active_workspace, true).await?;
                 }
             } else {
-                state.move_window_to_workspace(&special_workspace).await?;
+                state.move_window_to_special_workspace(name.clone()).await?;
                 if !silent {
                     state.toggle_special_workspace(name).await?;
                 }
