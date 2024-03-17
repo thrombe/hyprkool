@@ -194,7 +194,8 @@ impl State {
         Ok(&self.workspaces[activity_index][iy as usize * 3 + ix as usize])
     }
 
-    async fn move_to_workspace(&self, name: &str, move_window: bool) -> anyhow::Result<()> {
+    async fn move_to_workspace(&self, name: impl AsRef<str>, move_window: bool) -> anyhow::Result<()> {
+        let name = name.as_ref();
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
                 WorkspaceIdentifierWithSpecial::Name(name),
@@ -301,10 +302,7 @@ async fn main() -> anyhow::Result<()> {
 
                 let new_workspace = &state.workspaces[current_activity_index][y * 3 + x];
                 if new_workspace != &workspace.name {
-                    Dispatch::call_async(DispatchType::Workspace(
-                        WorkspaceIdentifierWithSpecial::Name(new_workspace),
-                    ))
-                    .await?;
+                    state.move_to_workspace(new_workspace, false).await?;
                     Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
                 }
             }
