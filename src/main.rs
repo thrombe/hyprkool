@@ -472,17 +472,17 @@ async fn main() -> anyhow::Result<()> {
             let special_workspace = format!("special:{}", &name);
             let active_workspace = &workspace.name;
 
-            let move_to = if window.workspace.name != special_workspace {
-                &special_workspace
+            if window.workspace.name == special_workspace {
+                state.move_window_to_workspace(active_workspace).await?;
+                if !silent {
+                    state.move_to_workspace(active_workspace, false).await?;
+                }
             } else {
-                active_workspace
+                state.move_window_to_workspace(&special_workspace).await?;
+                if !silent {
+                    state.toggle_special_workspace(name).await?;
+                }
             };
-
-            if silent {
-                state.move_window_to_workspace(move_to).await?;
-            } else {
-                state.move_to_workspace(move_to, move_window).await?;
-            }
         }
     }
 
