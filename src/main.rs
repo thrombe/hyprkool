@@ -313,14 +313,14 @@ async fn main() -> anyhow::Result<()> {
                     c.x = monitor.width as i64 - m;
                 } else if c.x >= monitor.width as i64 - 1 - w {
                     x += 1;
-                    c.x = 2;
+                    c.x = m;
                 }
                 if c.y <= w {
                     y += 3 - 1;
                     c.y = monitor.height as i64 - m;
                 } else if c.y >= monitor.height as i64 - 1 - w {
                     y += 1;
-                    c.y = 2;
+                    c.y = m;
                 }
 
                 if x + y == 0 {
