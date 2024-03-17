@@ -5,9 +5,10 @@ use clap::{arg, command, Parser, Subcommand};
 use hyprland::{
     data::{CursorPosition, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
-    shared::{HyprData, HyprDataActive},
+    event_listener::EventListener,
+    shared::{HyprData, HyprDataActive, WorkspaceType},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -46,6 +47,7 @@ impl Default for Config {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     MouseLoop,
+    PrintActivityStatus,
     MoveRight {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
@@ -206,6 +208,29 @@ impl State {
             .await?;
         }
         Ok(())
+    }
+
+    fn get_activity_status_repr(&self, workspace_name: &str) -> Option<String> {
+        let Some((activity_index, Some(workspace_index))) = self.get_indices(workspace_name) else {
+            return None;
+        };
+
+        let mut activity = String::new();
+        for (i, _) in self.workspaces[activity_index].iter().enumerate() {
+            if i == 0 {
+            } else if i % 3 == 0 && i > 0 && i < 9 {
+                activity += "\n";
+            } else {
+                activity += " ";
+            }
+            if i == workspace_index {
+                activity += "   ";
+            } else {
+                activity += "███";
+            }
+        }
+
+        Some(activity)
     }
 }
 
@@ -381,6 +406,36 @@ async fn main() -> anyhow::Result<()> {
         Command::MoveDown { cycle, move_window } => {
             let workspace = state.moved_workspace(0, 1, cycle).await?;
             state.move_to_workspace(workspace, move_window).await?;
+        }
+        Command::PrintActivityStatus => {
+            #[derive(Deserialize, Serialize, Debug)]
+            struct ActivityStatus {
+                text: String,
+            }
+            fn print_state(state: &State, name: &str) {
+                state
+                    .get_activity_status_repr(name)
+                    .into_iter()
+                    .for_each(|a| {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&ActivityStatus { text: a })
+                                .expect("it will work")
+                        );
+                    });
+            }
+
+            let workspace = Workspace::get_active_async().await?;
+            print_state(&state, &workspace.name);
+
+            let mut ael = EventListener::new();
+            ael.add_workspace_change_handler(move |e| match e {
+                WorkspaceType::Regular(name) => {
+                    print_state(&state, &name);
+                }
+                WorkspaceType::Special(..) => {}
+            });
+            ael.start_listener_async().await?;
         }
     }
 
