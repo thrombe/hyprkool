@@ -13,6 +13,13 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 # todo
 - [ ] desktop grid overview
 - [ ] better animations support
+- [ ] special workspaces
+- [ ] a good window maximise implementation that keeps other windows
+  in current workspace behind the active one instead of hiding it
+- [ ] general (x, y) grid
+  - [ ] (x, y) grid per activity
+- [ ] named workspaces
+  - [ ] named workspaces per activity
 
 # Installation
 ## Cargo
