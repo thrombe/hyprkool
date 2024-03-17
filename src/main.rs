@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Context};
 use clap::{arg, command, Parser, Subcommand};
 use hyprland::{
-    data::{CursorPosition, Monitor, Workspace},
+    data::{Client, CursorPosition, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     event_listener::EventListener,
-    shared::{HyprData, HyprDataActive, WorkspaceType},
+    shared::{HyprData, HyprDataActive, HyprDataActiveOptional, WorkspaceType},
 };
 use serde::{Deserialize, Serialize};
 
@@ -123,6 +123,17 @@ pub enum Command {
         #[arg(long, short = 'w', default_value_t = false)]
         move_window: bool,
     },
+    ToggleSpecialWorkspace {
+        #[arg(short, long)]
+        name: String,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
+
+        #[arg(short, long, requires("move_window"))]
+        silent: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -208,6 +219,21 @@ impl State {
             ))
             .await?;
         }
+        Ok(())
+    }
+
+    async fn move_window_to_workspace(&self, name: impl AsRef<str>) -> anyhow::Result<()> {
+        let name = name.as_ref();
+        Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+            WorkspaceIdentifierWithSpecial::Name(name),
+            None,
+        ))
+        .await?;
+        Ok(())
+    }
+
+    async fn toggle_special_workspace(&self, name: String) -> anyhow::Result<()> {
+        Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
         Ok(())
     }
 
@@ -434,6 +460,29 @@ async fn main() -> anyhow::Result<()> {
                 WorkspaceType::Special(..) => {}
             });
             ael.start_listener_async().await?;
+        }
+        Command::ToggleSpecialWorkspace { name, move_window, silent } => {
+            if !move_window {
+                state.toggle_special_workspace(name).await?;
+                return Ok(())
+            }
+            let window = Client::get_active_async().await?.context("No active window")?;
+            let workspace = Workspace::get_active_async().await?;
+
+            let special_workspace = format!("special:{}", &name);
+            let active_workspace = &workspace.name;
+
+            let move_to = if window.workspace.name != special_workspace {
+                &special_workspace
+            } else {
+                active_workspace
+            };
+
+            if silent {
+                state.move_window_to_workspace(move_to).await?;
+            } else {
+                state.move_to_workspace(move_to, move_window).await?;
+            }
         }
     }
 

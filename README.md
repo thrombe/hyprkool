@@ -13,7 +13,6 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 # todo
 - [ ] desktop grid overview
 - [ ] better animations support
-- [ ] special workspaces
 - [ ] a good window maximise implementation that keeps other windows
   in current workspace behind the active one instead of hiding it
 - [ ] general (x, y) grid
@@ -103,6 +102,11 @@ bind = $mainMod CTRL, h, exec, hyprkool move-left -c -w
 bind = $mainMod CTRL, l, exec, hyprkool move-right -c -w
 bind = $mainMod CTRL, j, exec, hyprkool move-down -c -w
 bind = $mainMod CTRL, k, exec, hyprkool move-up -c -w
+
+# toggle special workspace
+bind = $mainMod, SPACE, exec, hyprkool toggle-special-workspace -n minimized
+# move active window to special workspace without switching to that workspace
+bind = $mainMod, s, exec, hyprkool toggle-special-workspace -n minimized -w -s
 
 # switch workspaces when mouse touches any of the edges
 exec-once = hyprkool mouse-loop
