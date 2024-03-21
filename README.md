@@ -104,7 +104,7 @@ bind = $mainMod, s, exec, hyprkool toggle-special-workspace -n minimized -w -s
 exec-once = hyprkool mouse-loop
 ```
 
-## Waybar config for a simple workspace indicator
+## Waybar config
 it simply uses the unicode Full block characters '█' to show activities.
 it looks something like this
 <br>
@@ -118,8 +118,13 @@ it looks something like this
 	"custom/hyprkool-workspaces": {
 		"format": "{}",
 		"return-type": "json",
-		"exec": "hyprkool print-activity-status"
-	}
+		"exec": "hyprkool waybar-activity-status"
+	},
+  "custom/hyprkool-window": {
+      "format": "{}",
+      "return-type": "json",
+      "exec": "hyprkool waybar-active-window",
+  },
 }
 ```
 
