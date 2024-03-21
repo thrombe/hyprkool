@@ -55,18 +55,7 @@ impl Default for Config {
 pub enum Command {
     MouseLoop,
     WaybarActivityStatus,
-    WaybarActiveWindow {
-        /// try to find smallest icon bigger/equal to this size in px
-        /// default is 0
-        /// returns the biggest found size if none is bigger than/equal to the specified size
-        #[arg(long, short = 's', default_value_t = 0)]
-        try_min_size: u16,
-
-        /// default value is the current icon theme
-        /// will use fallback theme is this is not found
-        #[arg(long, short)]
-        theme: Option<String>,
-    },
+    WaybarActiveWindow,
     MoveRight {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
@@ -498,14 +487,11 @@ async fn main() -> Result<()> {
             });
             ael.start_listener_async().await?;
         }
-        Command::WaybarActiveWindow {
-            theme,
-            try_min_size,
-        } => {
+        Command::WaybarActiveWindow => {
             let window_states = Arc::new(Mutex::new(WindowStates::new(
                 Clients::get_async().await?,
-                theme,
-                try_min_size,
+                None,
+                0,
             )?));
 
             let ws = window_states.clone();
