@@ -67,18 +67,6 @@ pub enum Command {
         #[arg(long, short)]
         theme: Option<String>,
     },
-    WaybarActiveWorkspaceWindows {
-        /// try to find smallest icon bigger/equal to this size in px
-        /// default is 0
-        /// returns the biggest found size if none is bigger than/equal to the specified size
-        #[arg(long, short = 's', default_value_t = 0)]
-        try_min_size: u16,
-
-        /// default value is the current icon theme
-        /// will use fallback theme is this is not found
-        #[arg(long, short)]
-        theme: Option<String>,
-    },
     MoveRight {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
@@ -546,53 +534,6 @@ async fn main() -> Result<()> {
                             .expect("could not find default app icon"),
                     });
                 println!("{}", serde_json::to_string(&WaybarText { text: w.initial_title }).unwrap());
-            });
-            ael.start_listener_async().await?;
-        }
-        Command::WaybarActiveWorkspaceWindows {
-            theme,
-            try_min_size,
-        } => {
-            let window_states = Arc::new(Mutex::new(WindowStates::new(
-                Clients::get_async().await?,
-                theme,
-                try_min_size,
-            )?));
-
-            let mut ael = EventListener::new();
-
-            let ws = window_states.clone();
-            ael.add_window_open_handler(move |_| {
-                let mut ws = ws.lock().expect("could not get lock");
-                ws.windows = Clients::get().unwrap();
-            });
-            let ws = window_states.clone();
-            ael.add_window_close_handler(move |_| {
-                let mut ws = ws.lock().expect("could not get lock");
-                ws.windows = Clients::get().unwrap();
-            });
-
-            let ws = window_states.clone();
-            ael.add_workspace_change_handler(move |e| {
-                let name = match &e {
-                    WorkspaceType::Regular(name) => name.as_str(),
-                    WorkspaceType::Special(name) => {
-                        name.as_ref().map(|s| s.as_str()).unwrap_or("special")
-                    }
-                };
-                let mut ws = ws.lock().expect("could not get lock");
-                let wds = ws
-                    .windows
-                    .iter()
-                    .filter(|w| w.workspace.name == name)
-                    .map(|w| w.address.clone())
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .filter_map(|w| ws.get_window(w).ok())
-                    .map(|w| WaybarText { text: w.initial_title})
-                    .collect::<Vec<_>>();
-
-                println!("{}", serde_json::to_string(&wds).unwrap());
             });
             ael.start_listener_async().await?;
         }
