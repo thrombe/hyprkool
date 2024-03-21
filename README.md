@@ -115,15 +115,15 @@ it looks something like this
 {
   ...
 
-	"custom/hyprkool-workspaces": {
-		"format": "{}",
-		"return-type": "json",
-		"exec": "hyprkool waybar-activity-status"
-	},
+  "custom/hyprkool-workspaces": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "hyprkool waybar-activity-status"
+  },
   "custom/hyprkool-window": {
-      "format": "{}",
-      "return-type": "json",
-      "exec": "hyprkool waybar-active-window",
+    "format": "{}",
+    "return-type": "json",
+    "exec": "hyprkool waybar-active-window",
   },
 }
 ```
