@@ -1,13 +1,18 @@
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Result};
 use clap::{arg, command, Parser, Subcommand};
 use hyprland::{
     data::{Client, Clients, CursorPosition, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     event_listener::EventListener,
-    shared::{HyprData, HyprDataActive, HyprDataActiveOptional, WorkspaceType},
+    shared::{Address, HyprData, HyprDataActive, HyprDataActiveOptional, WorkspaceType},
 };
+use linicon::IconPath;
 use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
@@ -50,6 +55,30 @@ impl Default for Config {
 pub enum Command {
     MouseLoop,
     PrintActivityStatus,
+    PrintActiveWindow {
+        /// try to find smallest icon bigger/equal to this size in px
+        /// default is 0
+        /// returns the biggest found size if none is bigger than/equal to the specified size
+        #[arg(long, short = 's', default_value_t = 0)]
+        try_min_size: u16,
+
+        /// default value is the current icon theme
+        /// will use fallback theme is this is not found
+        #[arg(long, short)]
+        theme: Option<String>,
+    },
+    PrintActiveWorkspaceWindows {
+        /// try to find smallest icon bigger/equal to this size in px
+        /// default is 0
+        /// returns the biggest found size if none is bigger than/equal to the specified size
+        #[arg(long, short = 's', default_value_t = 0)]
+        try_min_size: u16,
+
+        /// default value is the current icon theme
+        /// will use fallback theme is this is not found
+        #[arg(long, short)]
+        theme: Option<String>,
+    },
     MoveRight {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
@@ -186,7 +215,7 @@ impl State {
         Some((activity_index, workspace_index))
     }
 
-    async fn moved_workspace(&self, x: i64, y: i64, cycle: bool) -> anyhow::Result<&str> {
+    async fn moved_workspace(&self, x: i64, y: i64, cycle: bool) -> Result<&str> {
         let workspace = Workspace::get_active_async().await?;
         let Some((activity_index, Some(workspace_index))) = self.get_indices(workspace.name) else {
             return Err(anyhow!("Error: not in a valid activity workspace"));
@@ -209,11 +238,7 @@ impl State {
         Ok(&self.workspaces[activity_index][(iy * nx + ix) as usize])
     }
 
-    async fn move_to_workspace(
-        &self,
-        name: impl AsRef<str>,
-        move_window: bool,
-    ) -> anyhow::Result<()> {
+    async fn move_to_workspace(&self, name: impl AsRef<str>, move_window: bool) -> Result<()> {
         let name = name.as_ref();
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
@@ -230,7 +255,7 @@ impl State {
         Ok(())
     }
 
-    async fn move_window_to_workspace(&self, name: impl AsRef<str>) -> anyhow::Result<()> {
+    async fn move_window_to_workspace(&self, name: impl AsRef<str>) -> Result<()> {
         let name = name.as_ref();
         Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
             WorkspaceIdentifierWithSpecial::Name(name),
@@ -240,7 +265,7 @@ impl State {
         Ok(())
     }
 
-    async fn move_window_to_special_workspace(&self, name: impl AsRef<str>) -> anyhow::Result<()> {
+    async fn move_window_to_special_workspace(&self, name: impl AsRef<str>) -> Result<()> {
         let name = name.as_ref();
         Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
             WorkspaceIdentifierWithSpecial::Special(Some(name)),
@@ -250,7 +275,7 @@ impl State {
         Ok(())
     }
 
-    async fn toggle_special_workspace(&self, name: String) -> anyhow::Result<()> {
+    async fn toggle_special_workspace(&self, name: String) -> Result<()> {
         Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
         Ok(())
     }
@@ -282,7 +307,7 @@ impl State {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = cli
         .config_dir
@@ -489,6 +514,91 @@ async fn main() -> anyhow::Result<()> {
             });
             ael.start_listener_async().await?;
         }
+        Command::PrintActiveWindow {
+            theme,
+            try_min_size,
+        } => {
+            let window_states = Arc::new(Mutex::new(WindowStates::new(
+                Clients::get_async().await?,
+                theme,
+                try_min_size,
+            )?));
+
+            let ws = window_states.clone();
+            let mut ael = EventListener::new();
+            ael.add_active_window_change_handler(move |e| {
+                let Some(e) = e else {
+                    let w = WindowStatus {
+                        title: "Hyprland".to_owned(),
+                        initial_title: "Hyprland".to_owned(),
+                        class: "Hyprland".to_owned(),
+                        icon: PathBuf::new(),
+                    };
+                    println!("{:?}", serde_json::to_string(&w).unwrap());
+                    return;
+                };
+                let mut ws = ws.lock().expect("could not read windows");
+                let w = ws
+                    .get_window(e.window_address)
+                    .ok()
+                    .unwrap_or_else(|| WindowStatus {
+                        title: e.window_title.clone(),
+                        initial_title: e.window_title,
+                        class: e.window_class.clone(),
+                        icon: ws
+                            .get_default_app_icon()
+                            .expect("could not find default app icon"),
+                    });
+                println!("{:?}", serde_json::to_string(&w).unwrap());
+            });
+            ael.start_listener_async().await?;
+        }
+        Command::PrintActiveWorkspaceWindows {
+            theme,
+            try_min_size,
+        } => {
+            let window_states = Arc::new(Mutex::new(WindowStates::new(
+                Clients::get_async().await?,
+                theme,
+                try_min_size,
+            )?));
+
+            let mut ael = EventListener::new();
+
+            let ws = window_states.clone();
+            ael.add_window_open_handler(move |_| {
+                let mut ws = ws.lock().expect("could not get lock");
+                ws.windows = Clients::get().unwrap();
+            });
+            let ws = window_states.clone();
+            ael.add_window_close_handler(move |_| {
+                let mut ws = ws.lock().expect("could not get lock");
+                ws.windows = Clients::get().unwrap();
+            });
+
+            let ws = window_states.clone();
+            ael.add_workspace_change_handler(move |e| {
+                let name = match &e {
+                    WorkspaceType::Regular(name) => name.as_str(),
+                    WorkspaceType::Special(name) => {
+                        name.as_ref().map(|s| s.as_str()).unwrap_or("special")
+                    }
+                };
+                let mut ws = ws.lock().expect("could not get lock");
+                let wds = ws
+                    .windows
+                    .iter()
+                    .filter(|w| w.workspace.name == name)
+                    .map(|w| w.address.clone())
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .filter_map(|w| ws.get_window(w).ok())
+                    .collect::<Vec<_>>();
+
+                println!("{:?}", serde_json::to_string(&wds).unwrap());
+            });
+            ael.start_listener_async().await?;
+        }
         Command::ToggleSpecialWorkspace {
             name,
             move_window,
@@ -532,4 +642,106 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+struct WindowStatus {
+    title: String,
+    class: String,
+    initial_title: String,
+    icon: PathBuf,
+}
+
+#[derive(Debug)]
+struct WindowStates {
+    /// windows returned by hyprland
+    windows: Clients,
+    /// icons for every searched (app, size) pair
+    icons: HashMap<String, IconPath>,
+    theme: String,
+    try_min_size: u16,
+}
+impl WindowStates {
+    fn new(clients: Clients, theme: Option<String>, try_min_size: u16) -> Result<Self> {
+        let s = Self {
+            windows: clients,
+            icons: Default::default(),
+            theme: theme
+                .or_else(linicon::get_system_theme)
+                .context("could not get current theme")?,
+            try_min_size,
+        };
+        Ok(s)
+    }
+
+    fn get_default_app_icon(&mut self) -> Result<PathBuf> {
+        self.get_icon_path("wayland")
+    }
+
+    fn get_icon_path(&mut self, class: &str) -> Result<PathBuf> {
+        if let Some(icon) = self.icons.get(class) {
+            return Ok(icon.path.clone());
+        }
+
+        let icons = linicon::lookup_icon(class).from_theme(&self.theme);
+        let mut icon = None;
+        let mut alt = None;
+        for next in icons {
+            let next = next?;
+            if next.min_size >= self.try_min_size
+                && next.min_size
+                    < icon
+                        .as_ref()
+                        .map(|i: &IconPath| i.min_size)
+                        .unwrap_or(u16::MAX)
+            {
+                icon = Some(next);
+            } else if next.min_size
+                > alt
+                    .as_ref()
+                    .map(|i: &IconPath| i.min_size)
+                    .unwrap_or(u16::MIN)
+            {
+                alt = Some(next);
+            }
+        }
+        let icon = icon.or(alt).expect("could not find an icon");
+        let path = icon.path.clone();
+        self.icons.insert(class.to_owned(), icon);
+        Ok(path)
+    }
+
+    fn get_window(&mut self, address: Address) -> Result<WindowStatus> {
+        let mut w = self.windows.iter().find(|w| w.address == address).cloned();
+        if w.is_none() {
+            self.windows = Clients::get()?;
+            w = self.windows.iter().find(|w| w.address == address).cloned();
+        }
+        let Some(w) = w else {
+            return Err(anyhow!("could not find window"));
+        };
+        if let Some(icon) = self.icons.get(&w.initial_class) {
+            return Ok(WindowStatus {
+                title: w.title,
+                class: w.class,
+                initial_title: w.initial_title,
+                icon: icon.path.clone(),
+            });
+        }
+
+        let path = self
+            .get_icon_path(&w.initial_class)
+            .ok()
+            .unwrap_or_else(|| {
+                self.get_default_app_icon()
+                    .expect("could not get default app icon")
+            });
+
+        Ok(WindowStatus {
+            title: w.title,
+            initial_title: w.initial_title,
+            class: w.class,
+            icon: path,
+        })
+    }
 }
