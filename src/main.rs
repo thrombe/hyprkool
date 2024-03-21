@@ -534,7 +534,7 @@ async fn main() -> Result<()> {
                         class: "Hyprland".to_owned(),
                         icon: PathBuf::new(),
                     };
-                    println!("{:?}", serde_json::to_string(&w).unwrap());
+                    println!("{}", serde_json::to_string(&w).unwrap());
                     return;
                 };
                 let mut ws = ws.lock().expect("could not read windows");
@@ -549,7 +549,7 @@ async fn main() -> Result<()> {
                             .get_default_app_icon()
                             .expect("could not find default app icon"),
                     });
-                println!("{:?}", serde_json::to_string(&w).unwrap());
+                println!("{}", serde_json::to_string(&w).unwrap());
             });
             ael.start_listener_async().await?;
         }
@@ -595,7 +595,7 @@ async fn main() -> Result<()> {
                     .filter_map(|w| ws.get_window(w).ok())
                     .collect::<Vec<_>>();
 
-                println!("{:?}", serde_json::to_string(&wds).unwrap());
+                println!("{}", serde_json::to_string(&wds).unwrap());
             });
             ael.start_listener_async().await?;
         }
