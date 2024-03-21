@@ -54,8 +54,8 @@ impl Default for Config {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     MouseLoop,
-    PrintActivityStatus,
-    PrintActiveWindow {
+    WaybarActivityStatus,
+    WaybarActiveWindow {
         /// try to find smallest icon bigger/equal to this size in px
         /// default is 0
         /// returns the biggest found size if none is bigger than/equal to the specified size
@@ -67,7 +67,7 @@ pub enum Command {
         #[arg(long, short)]
         theme: Option<String>,
     },
-    PrintActiveWorkspaceWindows {
+    WaybarActiveWorkspaceWindows {
         /// try to find smallest icon bigger/equal to this size in px
         /// default is 0
         /// returns the biggest found size if none is bigger than/equal to the specified size
@@ -484,11 +484,7 @@ async fn main() -> Result<()> {
             let workspace = state.moved_workspace(0, 1, cycle).await?;
             state.move_to_workspace(workspace, move_window).await?;
         }
-        Command::PrintActivityStatus => {
-            #[derive(Deserialize, Serialize, Debug)]
-            struct ActivityStatus {
-                text: String,
-            }
+        Command::WaybarActivityStatus => {
             fn print_state(state: &State, name: &str) {
                 state
                     .get_activity_status_repr(name)
@@ -496,7 +492,7 @@ async fn main() -> Result<()> {
                     .for_each(|a| {
                         println!(
                             "{}",
-                            serde_json::to_string(&ActivityStatus { text: a })
+                            serde_json::to_string(&WaybarText { text: a })
                                 .expect("it will work")
                         );
                     });
@@ -514,7 +510,7 @@ async fn main() -> Result<()> {
             });
             ael.start_listener_async().await?;
         }
-        Command::PrintActiveWindow {
+        Command::WaybarActiveWindow {
             theme,
             try_min_size,
         } => {
@@ -549,11 +545,11 @@ async fn main() -> Result<()> {
                             .get_default_app_icon()
                             .expect("could not find default app icon"),
                     });
-                println!("{}", serde_json::to_string(&w).unwrap());
+                println!("{}", serde_json::to_string(&WaybarText { text: w.initial_title }).unwrap());
             });
             ael.start_listener_async().await?;
         }
-        Command::PrintActiveWorkspaceWindows {
+        Command::WaybarActiveWorkspaceWindows {
             theme,
             try_min_size,
         } => {
@@ -593,6 +589,7 @@ async fn main() -> Result<()> {
                     .collect::<Vec<_>>()
                     .into_iter()
                     .filter_map(|w| ws.get_window(w).ok())
+                    .map(|w| WaybarText { text: w.initial_title})
                     .collect::<Vec<_>>();
 
                 println!("{}", serde_json::to_string(&wds).unwrap());
@@ -642,6 +639,12 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+
+#[derive(Deserialize, Serialize, Debug)]
+struct WaybarText {
+    text: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
