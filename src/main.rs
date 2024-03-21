@@ -469,8 +469,7 @@ async fn main() -> Result<()> {
                     .for_each(|a| {
                         println!(
                             "{}",
-                            serde_json::to_string(&WaybarText { text: a })
-                                .expect("it will work")
+                            serde_json::to_string(&WaybarText { text: a }).expect("it will work")
                         );
                     });
             }
@@ -488,38 +487,33 @@ async fn main() -> Result<()> {
             ael.start_listener_async().await?;
         }
         Command::WaybarActiveWindow => {
-            let window_states = Arc::new(Mutex::new(WindowStates::new(
-                Clients::get_async().await?,
-                None,
-                0,
-            )?));
+            let windows = Arc::new(Mutex::new(Clients::get_async().await?));
 
-            let ws = window_states.clone();
+            let ws = windows.clone();
             let mut ael = EventListener::new();
             ael.add_active_window_change_handler(move |e| {
                 let Some(e) = e else {
-                    let w = WindowStatus {
-                        title: "Hyprland".to_owned(),
-                        initial_title: "Hyprland".to_owned(),
-                        class: "Hyprland".to_owned(),
-                        icon: PathBuf::new(),
+                    let w = WaybarText {
+                        text: "Hyprland".to_owned(),
                     };
                     println!("{}", serde_json::to_string(&w).unwrap());
                     return;
                 };
                 let mut ws = ws.lock().expect("could not read windows");
-                let w = ws
-                    .get_window(e.window_address)
-                    .ok()
-                    .unwrap_or_else(|| WindowStatus {
-                        title: e.window_title.clone(),
-                        initial_title: e.window_title,
-                        class: e.window_class.clone(),
-                        icon: ws
-                            .get_default_app_icon()
-                            .expect("could not find default app icon"),
-                    });
-                println!("{}", serde_json::to_string(&WaybarText { text: w.initial_title }).unwrap());
+
+                let mut w = ws.iter().find(|w| w.address == e.window_address).cloned();
+                if w.is_none() {
+                    *ws = Clients::get().expect("could not get windows");
+                    w = ws.iter().find(|w| w.address == e.window_address).cloned();
+                }
+
+                println!(
+                    "{}",
+                    serde_json::to_string(&WaybarText {
+                        text: w.map(|w| w.initial_title).unwrap()
+                    })
+                    .unwrap()
+                );
             });
             ael.start_listener_async().await?;
         }
@@ -567,7 +561,6 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-
 
 #[derive(Deserialize, Serialize, Debug)]
 struct WaybarText {
