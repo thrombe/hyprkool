@@ -116,6 +116,7 @@ eww (using [`deflisten`](https://github.com/elkowar/eww/blob/f1ec00a1c9a24c0738f
 and waybar (using [`exec`](https://github.com/Alexays/Waybar/wiki/Module:-Custom#continuous-script)) both support
 this kind of efficient updates.
 
+## Eww config
 Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/9a714cb99af83c60151370565125ca99a1a2bddf/configma/tools/home/.config/eww/eww.yuck)
 
 
