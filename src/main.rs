@@ -578,16 +578,16 @@ struct WindowStatus {
 #[derive(Debug)]
 struct WindowStates {
     /// windows returned by hyprland
-    windows: Clients,
+    windows: Vec<Client>,
     /// icons for every searched (app, size) pair
     icons: HashMap<String, IconPath>,
     theme: String,
     try_min_size: u16,
 }
 impl WindowStates {
-    fn new(clients: Clients, theme: Option<String>, try_min_size: u16) -> Result<Self> {
+    fn new(windows: Vec<Client>, theme: Option<String>, try_min_size: u16) -> Result<Self> {
         let s = Self {
-            windows: clients,
+            windows,
             icons: Default::default(),
             theme: theme
                 .or_else(linicon::get_system_theme)
@@ -637,7 +637,7 @@ impl WindowStates {
     fn get_window(&mut self, address: Address) -> Result<WindowStatus> {
         let mut w = self.windows.iter().find(|w| w.address == address).cloned();
         if w.is_none() {
-            self.windows = Clients::get()?;
+            self.windows = Clients::get()?.to_vec();
             w = self.windows.iter().find(|w| w.address == address).cloned();
         }
         let Some(w) = w else {
