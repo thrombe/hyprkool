@@ -12,8 +12,8 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 # Installation
 ## Cargo
 ```zsh
-git clone https://github.com/thrombe/waykool
-cd waykool
+git clone https://github.com/thrombe/hyprkool
+cd hyprkool
 cargo install --path .
 ```
 
