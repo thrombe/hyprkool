@@ -3,6 +3,15 @@ name = "hyprkool"
 version = "0.3.0"
 edition = "2021"
 
+license = "MIT"
+repository = "https://github.com/thrombe/hyprkool"
+description = "A tool that helps you replicate the feel of kde activities and desktop grid layout in Hyprland"
+keywords = [
+  "cli",
+  "hyprland",
+  "kde",
+]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
