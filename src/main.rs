@@ -8,9 +8,11 @@ use anyhow::{anyhow, Context, Result};
 use clap::{arg, command, Parser, Subcommand};
 use hyprland::{
     data::{Client, Clients, CursorPosition, Monitor, Workspace},
-    dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
+    dispatch::{Dispatch, DispatchType, WindowIdentifier, WorkspaceIdentifierWithSpecial},
     event_listener::EventListener,
-    shared::{Address, HyprData, HyprDataActive, HyprDataActiveOptional, WorkspaceType},
+    shared::{
+        Address, HyprData, HyprDataActive, HyprDataActiveOptional, HyprDataVec, WorkspaceType,
+    },
 };
 use linicon::IconPath;
 use serde::{Deserialize, Serialize};
