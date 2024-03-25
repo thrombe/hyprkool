@@ -669,9 +669,7 @@ async fn main() -> Result<()> {
                                 class: e.window_class.clone(),
                                 address: e.window_address.to_string(),
                                 workspace: workspace.name,
-                                icon: ws
-                                    .get_default_app_icon()
-                                    .expect("could not find default app icon"),
+                                icon: ws.get_default_app_icon().unwrap_or_default(),
                             });
                         println!("{}", serde_json::to_string(&w).unwrap());
                     };
@@ -948,13 +946,8 @@ impl WindowStates {
             });
         }
 
-        let path = self
-            .get_icon_path(&w.initial_class)
-            .ok()
-            .unwrap_or_else(|| {
-                self.get_default_app_icon()
-                    .expect("could not get default app icon")
-            });
+        let default_icon = self.get_default_app_icon()?;
+        let path = self.get_icon_path(&w.initial_class).unwrap_or(default_icon);
 
         Ok(WindowStatus {
             title: w.title,
