@@ -104,6 +104,21 @@ bind = $mainMod, s, exec, hyprkool toggle-special-workspace -n minimized -w -s
 exec-once = hyprkool mouse-loop
 ```
 
+## Info commands
+Hyprkool supports some additional info commands that help you to build widgets using applications like
+[waybar](https://github.com/Alexays/Waybar) and [eww](https://github.com/elkowar/eww).
+
+for example, ```hyprkool info -m active-window``` prints the active window information.
+
+Note: the --monitor or -m flag makes this info print in an infinite loop. this however is very efficient
+as it is event based and not polling based.
+eww (using [`deflisten`](https://github.com/elkowar/eww/blob/f1ec00a1c9a24c0738fb5d5ac309d6af16e67415/docs/src/configuration.md#adding-dynamic-content))
+and waybar (using [`exec`](https://github.com/Alexays/Waybar/wiki/Module:-Custom#continuous-script)) both support
+this kind of efficient updates.
+
+<!-- Example eww config can be found in [my dotfiles]() -->
+
+
 ## Waybar config
 it simply uses the unicode Full block characters '█' to show activities.
 it looks something like this
@@ -118,12 +133,12 @@ it looks something like this
   "custom/hyprkool-workspaces": {
     "format": "{}",
     "return-type": "json",
-    "exec": "hyprkool waybar-activity-status"
+    "exec": "hyprkool info -m waybar-activity-status"
   },
   "custom/hyprkool-window": {
     "format": "{}",
     "return-type": "json",
-    "exec": "hyprkool waybar-active-window",
+    "exec": "hyprkool info -m waybar-active-window",
   },
 }
 ```
