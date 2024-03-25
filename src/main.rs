@@ -58,6 +58,10 @@ pub enum Command {
     MouseLoop,
     WaybarActivityStatus,
     WaybarActiveWindow,
+    FocusWindow {
+        #[arg(long, short)]
+        address: String,
+    },
     MoveRight {
         #[arg(long, short, default_value_t = false)]
         cycle: bool,
@@ -558,6 +562,20 @@ async fn main() -> Result<()> {
                     state.toggle_special_workspace(name).await?;
                 }
             };
+        }
+        Command::FocusWindow { address } => {
+            let windows = Clients::get_async().await?;
+            let cursor = CursorPosition::get_async().await?;
+            for w in windows {
+                if w.address.to_string() == address {
+                    Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
+                        w.address,
+                    )))
+                    .await?;
+                    Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
+                    break;
+                }
+            }
         }
     }
 
