@@ -56,8 +56,6 @@ impl Default for Config {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     MouseLoop,
-    WaybarActivityStatus,
-    WaybarActiveWindow,
     FocusWindow {
         #[arg(long, short)]
         address: String,
@@ -148,6 +146,16 @@ pub enum Command {
         #[arg(short, long, requires("move_window"))]
         silent: bool,
     },
+    Info {
+        #[command(subcommand)]
+        command: InfoCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum InfoCommand {
+    WaybarActivityStatus,
+    WaybarActiveWindow,
 }
 
 #[derive(Debug)]
@@ -467,62 +475,6 @@ async fn main() -> Result<()> {
             let workspace = state.moved_workspace(0, 1, cycle).await?;
             state.move_to_workspace(workspace, move_window).await?;
         }
-        Command::WaybarActivityStatus => {
-            fn print_state(state: &State, name: &str) {
-                state
-                    .get_activity_status_repr(name)
-                    .into_iter()
-                    .for_each(|a| {
-                        println!(
-                            "{}",
-                            serde_json::to_string(&WaybarText { text: a }).expect("it will work")
-                        );
-                    });
-            }
-
-            let workspace = Workspace::get_active_async().await?;
-            print_state(&state, &workspace.name);
-
-            let mut ael = EventListener::new();
-            ael.add_workspace_change_handler(move |e| match e {
-                WorkspaceType::Regular(name) => {
-                    print_state(&state, &name);
-                }
-                WorkspaceType::Special(..) => {}
-            });
-            ael.start_listener_async().await?;
-        }
-        Command::WaybarActiveWindow => {
-            let windows = Arc::new(Mutex::new(Clients::get_async().await?));
-
-            let ws = windows.clone();
-            let mut ael = EventListener::new();
-            ael.add_active_window_change_handler(move |e| {
-                let Some(e) = e else {
-                    let w = WaybarText {
-                        text: "Hyprland".to_owned(),
-                    };
-                    println!("{}", serde_json::to_string(&w).unwrap());
-                    return;
-                };
-                let mut ws = ws.lock().expect("could not read windows");
-
-                let mut w = ws.iter().find(|w| w.address == e.window_address).cloned();
-                if w.is_none() {
-                    *ws = Clients::get().expect("could not get windows");
-                    w = ws.iter().find(|w| w.address == e.window_address).cloned();
-                }
-
-                println!(
-                    "{}",
-                    serde_json::to_string(&WaybarText {
-                        text: w.map(|w| w.initial_title).unwrap()
-                    })
-                    .unwrap()
-                );
-            });
-            ael.start_listener_async().await?;
-        }
         Command::ToggleSpecialWorkspace {
             name,
             move_window,
@@ -577,6 +529,66 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        Command::Info { command } => {
+            match command {
+                InfoCommand::WaybarActivityStatus => {
+                    fn print_state(state: &State, name: &str) {
+                        state
+                            .get_activity_status_repr(name)
+                            .into_iter()
+                            .for_each(|a| {
+                                println!(
+                                    "{}",
+                                    serde_json::to_string(&WaybarText { text: a }).expect("it will work")
+                                );
+                            });
+                    }
+
+                    let workspace = Workspace::get_active_async().await?;
+                    print_state(&state, &workspace.name);
+
+                    let mut ael = EventListener::new();
+                    ael.add_workspace_change_handler(move |e| match e {
+                        WorkspaceType::Regular(name) => {
+                            print_state(&state, &name);
+                        }
+                        WorkspaceType::Special(..) => {}
+                    });
+                    ael.start_listener_async().await?;
+                }
+                InfoCommand::WaybarActiveWindow => {
+                    let windows = Arc::new(Mutex::new(Clients::get_async().await?));
+
+                    let ws = windows.clone();
+                    let mut ael = EventListener::new();
+                    ael.add_active_window_change_handler(move |e| {
+                        let Some(e) = e else {
+                            let w = WaybarText {
+                                text: "Hyprland".to_owned(),
+                            };
+                            println!("{}", serde_json::to_string(&w).unwrap());
+                            return;
+                        };
+                        let mut ws = ws.lock().expect("could not read windows");
+
+                        let mut w = ws.iter().find(|w| w.address == e.window_address).cloned();
+                        if w.is_none() {
+                            *ws = Clients::get().expect("could not get windows");
+                            w = ws.iter().find(|w| w.address == e.window_address).cloned();
+                        }
+
+                        println!(
+                            "{}",
+                            serde_json::to_string(&WaybarText {
+                                text: w.map(|w| w.initial_title).unwrap()
+                            })
+                            .unwrap()
+                        );
+                    });
+                    ael.start_listener_async().await?;
+                }
+            }
+        },
     }
 
     Ok(())
