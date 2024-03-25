@@ -12,6 +12,11 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 # Installation
 ## Cargo
 ```zsh
+cargo install --locked hyprkool
+```
+
+## Install from source
+```zsh
 git clone https://github.com/thrombe/hyprkool
 cd hyprkool
 cargo install --path .
