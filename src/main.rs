@@ -628,7 +628,7 @@ impl WindowStates {
                 alt = Some(next);
             }
         }
-        let icon = icon.or(alt).expect("could not find an icon");
+        let icon = icon.or(alt).context("could not find an icon")?;
         let path = icon.path.clone();
         self.icons.insert(class.to_owned(), icon);
         Ok(path)
