@@ -156,6 +156,34 @@ pub enum Command {
 pub enum InfoCommand {
     WaybarActivityStatus,
     WaybarActiveWindow,
+
+    Submap,
+    Activities,
+    Workspaces,
+    ActiveWindow {
+        /// try to find smallest icon bigger/equal to this size in px
+        /// default is 0
+        /// returns the biggest found size if none is bigger than/equal to the specified size
+        #[arg(long, short = 's', default_value_t = 0)]
+        try_min_size: u16,
+
+        /// default value is the current icon theme
+        /// will use fallback theme is this is not found
+        #[arg(long, short)]
+        theme: Option<String>,
+    },
+    ActiveWorkspaceWindows {
+        /// try to find smallest icon bigger/equal to this size in px
+        /// default is 0
+        /// returns the biggest found size if none is bigger than/equal to the specified size
+        #[arg(long, short = 's', default_value_t = 0)]
+        try_min_size: u16,
+
+        /// default value is the current icon theme
+        /// will use fallback theme is this is not found
+        #[arg(long, short)]
+        theme: Option<String>,
+    },
 }
 
 #[derive(Debug)]
@@ -587,6 +615,206 @@ async fn main() -> Result<()> {
                     });
                     ael.start_listener_async().await?;
                 }
+                InfoCommand::Submap => {
+                    let mut ael = EventListener::new();
+                    ael.add_sub_map_change_handler(|submap| {
+                        println!("{{\"submap\":\"{submap}\"}}");
+                    });
+                    ael.start_listener_async().await?;
+                }
+                InfoCommand::ActiveWindow {
+                    theme,
+                    try_min_size,
+                } => {
+                    let window_states = Arc::new(Mutex::new(WindowStates::new(
+                        Clients::get_async().await?.to_vec(),
+                        theme,
+                        try_min_size,
+                    )?));
+
+                    let ws = window_states.clone();
+                    let mut ael = EventListener::new();
+                    ael.add_active_window_change_handler(move |e| {
+                        let workspace = Workspace::get_active().expect("could not get active workspace");
+                        let Some(e) = e else {
+                            let w = WindowStatus {
+                                title: "Hyprland".to_owned(),
+                                initial_title: "Hyprland".to_owned(),
+                                class: "Hyprland".to_owned(),
+                                address: "0x0".to_string(),
+                                workspace: workspace.name,
+                                icon: PathBuf::new(),
+                            };
+                            println!("{}", serde_json::to_string(&w).unwrap());
+                            return;
+                        };
+                        let mut ws = ws.lock().expect("could not read windows");
+                        let w = ws
+                            .get_window(e.window_address.clone())
+                            .ok()
+                            .unwrap_or_else(|| WindowStatus {
+                                title: e.window_title.clone(),
+                                initial_title: e.window_title,
+                                class: e.window_class.clone(),
+                                address: e.window_address.to_string(),
+                                workspace: workspace.name,
+                                icon: ws
+                                    .get_default_app_icon()
+                                    .expect("could not find default app icon"),
+                            });
+                        println!("{}", serde_json::to_string(&w).unwrap());
+                    });
+                    ael.start_listener_async().await?;
+                }
+                InfoCommand::ActiveWorkspaceWindows {
+                    theme,
+                    try_min_size,
+                } => {
+                    let window_states = Arc::new(Mutex::new(WindowStates::new(
+                        Clients::get_async().await?.to_vec(),
+                        theme,
+                        try_min_size,
+                    )?));
+
+                    let mut ael = EventListener::new();
+                    let ws = window_states.clone();
+                    let print_status = move |name: &str, except: Option<Address>| {
+                        let mut ws = ws.lock().expect("could not get lock");
+                        let wds = ws
+                            .windows
+                            .iter()
+                            .filter(|w| w.workspace.name == name)
+                            .map(|w| w.address.clone())
+                            .filter(|w| except.as_ref().map(|e| w != e).unwrap_or(true))
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                            .filter_map(|w| ws.get_window(w).ok())
+                            .collect::<Vec<_>>();
+
+                        println!("{}", serde_json::to_string(&wds).unwrap());
+                    };
+
+                    let w = Workspace::get_active()?;
+                    print_status(&w.name, None);
+
+                    let ws = window_states.clone();
+                    let ps = print_status.clone();
+                    ael.add_window_open_handler(move |_| {
+                        let mut ws = ws.lock().expect("could not get lock");
+                        ws.windows = Clients::get().unwrap().to_vec();
+                        drop(ws);
+
+                        let w = Workspace::get_active().expect("could not get active workspace");
+                        ps(&w.name, None);
+                    });
+                    let ws = window_states.clone();
+                    let ps = print_status.clone();
+                    ael.add_window_moved_handler(move |_| {
+                        let mut ws = ws.lock().expect("could not get lock");
+                        ws.windows = Clients::get().unwrap().to_vec();
+                        drop(ws);
+
+                        let w = Workspace::get_active().expect("could not get active workspace");
+                        ps(&w.name, None);
+                    });
+                    let ps = print_status.clone();
+                    let ws = window_states.clone();
+                    ael.add_window_close_handler(move |addr| {
+                        let mut ws = ws.lock().expect("could not get lock");
+                        ws.windows.retain(|w| w.address != addr);
+                        drop(ws);
+
+                        let w = Workspace::get_active().expect("could not get active workspace");
+                        ps(&w.name, Some(addr));
+                    });
+
+                    let ps = print_status.clone();
+                    ael.add_workspace_change_handler(move |e| {
+                        let name = match &e {
+                            WorkspaceType::Regular(name) => name.as_str(),
+                            WorkspaceType::Special(name) => {
+                                name.as_ref().map(|s| s.as_str()).unwrap_or("special")
+                            }
+                        };
+                        ps(name, None);
+                    });
+                    ael.start_listener_async().await?;
+                }
+                InfoCommand::Workspaces => {
+                    fn print_state(state: &State, name: &str) {
+                        let Some((activity_index, Some(workspace_index))) = state.get_indices(name) else {
+                            return;
+                        };
+
+                        let mut activity = Vec::new();
+                        let nx = state.config.workspaces.0 as usize;
+                        let mut wss = Vec::new();
+                        for (i, w) in state.workspaces[activity_index].iter().enumerate() {
+                            if i % nx == 0 && i > 0 {
+                                activity.push(wss);
+                                wss = Vec::new();
+                            }
+                            let mut ws = WorkspaceStatus {
+                                name: w.to_owned(),
+                                focus: false,
+                            };
+                            if i == workspace_index {
+                                ws.focus = true;
+                            }
+                            wss.push(ws);
+                        }
+                        activity.push(wss);
+
+                        println!("{}", serde_json::to_string(&activity).unwrap());
+                    }
+
+                    let workspace = Workspace::get_active_async().await?;
+                    print_state(&state, &workspace.name);
+
+                    let mut ael = EventListener::new();
+                    ael.add_workspace_change_handler(move |e| match e {
+                        WorkspaceType::Regular(name) => {
+                            print_state(&state, &name);
+                        }
+                        WorkspaceType::Special(..) => {}
+                    });
+                    ael.start_listener_async().await?;
+                }
+                InfoCommand::Activities => {
+                    let mut ael = EventListener::new();
+                    let ws = Workspace::get_active_async().await?;
+                    let Some(w) = ws.name.split(':').next() else {
+                        return Ok(());
+                    };
+
+                    let print_name = move |w: &str| {
+                        let acs = state
+                            .activities
+                            .iter()
+                            .map(|name| ActivityStatus {
+                                name: name.into(),
+                                focus: w == name,
+                            })
+                            .collect::<Vec<_>>();
+                        println!("{}", serde_json::to_string(&acs).unwrap());
+                    };
+                    print_name(w);
+
+                    ael.add_workspace_change_handler(move |e| {
+                        let name = match &e {
+                            WorkspaceType::Regular(name) => name.as_str(),
+                            WorkspaceType::Special(..) => {
+                                return;
+                            }
+                        };
+
+                        let Some(w) = name.split(':').next() else {
+                            return;
+                        };
+                        print_name(w);
+                    });
+                    ael.start_listener_async().await?;
+                }
             }
         },
     }
@@ -597,6 +825,18 @@ async fn main() -> Result<()> {
 #[derive(Deserialize, Serialize, Debug)]
 struct WaybarText {
     text: String,
+}
+
+#[derive(Serialize, Debug)]
+struct ActivityStatus {
+    name: String,
+    focus: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+struct WorkspaceStatus {
+    name: String,
+    focus: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
