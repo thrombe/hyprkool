@@ -573,6 +573,8 @@ struct WindowStatus {
     class: String,
     initial_title: String,
     icon: PathBuf,
+    address: String,
+    workspace: String,
 }
 
 #[derive(Debug)]
@@ -648,6 +650,8 @@ impl WindowStates {
                 title: w.title,
                 class: w.class,
                 initial_title: w.initial_title,
+                address: w.address.to_string(),
+                workspace: w.workspace.name,
                 icon: icon.path.clone(),
             });
         }
@@ -664,6 +668,8 @@ impl WindowStates {
             title: w.title,
             initial_title: w.initial_title,
             class: w.class,
+            address: w.address.to_string(),
+            workspace: w.workspace.name,
             icon: path,
         })
     }
