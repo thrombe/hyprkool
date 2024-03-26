@@ -684,7 +684,7 @@ impl Command {
                         .expect("just checked this");
                     name.push_str(id);
                 } else {
-                    name.push('0');
+                    name.push_str("(1 1)");
                 };
                 state.move_to_workspace(&name, move_window).await?;
             }
