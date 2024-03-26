@@ -514,6 +514,7 @@ impl InfoCommand {
 
 #[derive(Debug)]
 pub struct State {
+    pub focused: HashMap<String, String>,
     pub activities: Vec<String>,
     pub workspaces: Vec<Vec<String>>,
     pub config: Config,
@@ -538,6 +539,7 @@ impl State {
             .collect::<Vec<_>>();
 
         Self {
+            focused: HashMap::new(),
             activities,
             workspaces: cooked_workspaces,
             config,
@@ -649,11 +651,79 @@ impl State {
 
         Some(activity)
     }
+
+    fn remember_workspace(&mut self, w: &Workspace) {
+        let a = w
+            .name
+            .split_once(':')
+            .and_then(|(w, _)| self.activities.iter().find(|&a| a == w))
+            .cloned();
+        if let Some(a) = a {
+            self.focused.insert(a, w.name.clone());
+        }
+    }
 }
 
 impl Command {
     async fn execute(self, state: Arc<tokio::sync::Mutex<State>>, stateful: bool) -> Result<()> {
-        let state = state.lock().await;
+        let mut state = state.lock().await;
+
+        if stateful {
+            let workspace = Workspace::get_active_async().await?;
+            let a = match &self {
+                Command::SwitchToActivity { name, move_window } => {
+                    Some((name.clone(), *move_window))
+                }
+                Command::NextActivity { cycle, move_window } => {
+                    let i = state
+                        .activities
+                        .iter()
+                        .position(|a| workspace.name.starts_with(a))
+                        .map(|i| {
+                            let mut i = i;
+                            let n = state.activities.len();
+                            if *cycle {
+                                i = (i + 1) % n;
+                            } else {
+                                i = (i + 1).min(n);
+                            }
+                            i
+                        })
+                        .unwrap_or(0);
+                    let a = state.activities[i].clone();
+                    state.remember_workspace(&workspace);
+                    Some((a, *move_window))
+                }
+                Command::PrevActivity { cycle, move_window } => {
+                    let i = state
+                        .activities
+                        .iter()
+                        .position(|a| workspace.name.starts_with(a))
+                        .map(|i| {
+                            let mut i = i as isize;
+                            let n = state.activities.len();
+                            if *cycle {
+                                i = (n as isize + i - 1) % n as isize;
+                            } else {
+                                i = (i - 1).max(0);
+                            }
+                            i as usize
+                        })
+                        .unwrap_or(0);
+                    let a = state.activities[i].clone();
+                    Some((a, *move_window))
+                }
+                _ => None,
+            };
+
+            if let Some((a, move_window)) = a {
+                if let Some(w) = state.focused.get(&a).cloned() {
+                    state.move_to_workspace(&w, move_window).await?;
+                    return Ok(());
+                }
+            }
+        }
+
         match self {
             Command::SwitchToWorkspace { name, move_window } => {
                 let (activity_index, workspace_index) =
@@ -711,6 +781,7 @@ impl Command {
                 } else {
                     name = state.workspaces[new_activity_index][0].clone();
                 };
+                state.remember_workspace(&workspace);
                 state.move_to_workspace(&name, move_window).await?;
             }
             Command::PrevActivity { cycle, move_window } => {
@@ -737,6 +808,7 @@ impl Command {
                 } else {
                     name = state.workspaces[activity_index][0].clone();
                 };
+                state.remember_workspace(&workspace);
                 state.move_to_workspace(&name, move_window).await?;
             }
             Command::MoveRight { cycle, move_window } => {
