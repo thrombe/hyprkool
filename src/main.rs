@@ -206,6 +206,7 @@ pub enum InfoCommand {
     Submap,
     Activities,
     Workspaces,
+    AllWorkspaces,
     ActiveWindow {
         /// try to find smallest icon bigger/equal to this size in px
         /// default is 0
@@ -457,6 +458,46 @@ impl InfoCommand {
                     activity.push(wss);
 
                     println!("{}", serde_json::to_string(&activity).unwrap());
+                }
+
+                let workspace = Workspace::get_active_async().await?;
+                print_state(&state, &workspace.name);
+
+                ael.add_workspace_change_handler(move |e| match e {
+                    WorkspaceType::Regular(name) => {
+                        print_state(&state, &name);
+                    }
+                    WorkspaceType::Special(..) => {}
+                });
+            }
+            // TODO: maybe this can make InfoCommand::Workspace obsolete.
+            // need to add more fields tho. (currectly focused activity)
+            InfoCommand::AllWorkspaces => {
+                fn print_state(state: &State, name: &str) {
+                    let mut activities = Vec::new();
+                    for i in 0..state.activities.len() {
+                        let mut activity = Vec::new();
+                        let nx = state.config.workspaces.0 as usize;
+                        let mut wss = Vec::new();
+                        for (i, w) in state.workspaces[i].iter().enumerate() {
+                            if i % nx == 0 && i > 0 {
+                                activity.push(wss);
+                                wss = Vec::new();
+                            }
+                            let mut ws = WorkspaceStatus {
+                                name: w.to_owned(),
+                                focus: false,
+                            };
+                            if w == name {
+                                ws.focus = true;
+                            }
+                            wss.push(ws);
+                        }
+                        activity.push(wss);
+                        activities.push(activity);
+                    }
+
+                    println!("{}", serde_json::to_string(&activities).unwrap());
                 }
 
                 let workspace = Workspace::get_active_async().await?;
