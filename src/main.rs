@@ -60,11 +60,15 @@ impl Cli {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct DaemonConfig {
+    // TODO: maybe
+    // pub enable: bool,
+    /// how long to wait for ipc responses before executing the command in ms
+    // pub ipc_timeout: u64,
+
+    pub fallback_commands: bool,
+
     /// remember what workspace was last focused on an activity
     pub remember_activity_focus: bool,
-
-    /// how long to wait for ipc responses before executing the command in ms
-    pub ipc_timeout: u32,
 
     pub mouse: MouseConfig,
 }
@@ -72,7 +76,7 @@ impl Default for DaemonConfig {
     fn default() -> Self {
         Self {
             remember_activity_focus: true,
-            ipc_timeout: 300,
+            fallback_commands: true,
             mouse: Default::default(),
         }
     }
@@ -132,6 +136,11 @@ impl Message {
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
+    Daemon {
+        #[arg(long, short, default_value_t = false)]
+        move_to_hyprkool_activity: bool,
+    },
+    DaemonQuit,
     Info {
         #[command(subcommand)]
         command: InfoCommand,
@@ -139,10 +148,6 @@ pub enum Command {
         #[arg(long, short, default_value_t = false)]
         monitor: bool,
     },
-    MouseLoop,
-    IpcListen,
-    IpcQuit,
-    RememberActivityWorkspace,
     FocusWindow {
         #[arg(long, short)]
         address: String,
@@ -238,6 +243,7 @@ pub enum Command {
 impl Command {
     async fn execute(self, state: Arc<tokio::sync::Mutex<State>>, stateful: bool) -> Result<()> {
         let mut state = state.lock().await;
+        let stateful = state.config.daemon.remember_activity_focus && stateful;
 
         if stateful {
             let workspace = Workspace::get_active_async().await?;
@@ -968,122 +974,198 @@ impl State {
     }
 }
 
+struct MouseDaemon {
+    state: Arc<tokio::sync::Mutex<State>>,
+
+    // TODO: multi monitor setup yaaaaaaaaaaaaaaaaa
+    monitor: Monitor,
+
+    config: Config,
+}
+impl MouseDaemon {
+    async fn new(state: Arc<tokio::sync::Mutex<State>>) -> Result<Self> {
+        let s = state.lock().await;
+        let monitor = Monitor::get_active_async().await?;
+        let config = s.config.clone();
+        drop(s);
+
+        Ok(Self {
+            config,
+            monitor,
+            state,
+        })
+    }
+
+    async fn run(&mut self, move_to_hyprkool_activity: bool) -> Result<()> {
+        let workspace = Workspace::get_active_async().await?;
+
+        {
+            let state = self.state.lock().await;
+
+            if state.get_indices(&workspace.name).is_none() && move_to_hyprkool_activity {
+                Dispatch::call_async(DispatchType::Workspace(
+                    WorkspaceIdentifierWithSpecial::Name(&state.workspaces[0][0]),
+                ))
+                .await?;
+            };
+        }
+
+        let w = self.config.daemon.mouse.edge_width as i64;
+        let m = self.config.daemon.mouse.edge_margin as i64;
+        let enabled = self.config.daemon.mouse.switch_workspace_on_edge;
+
+        let mut sleep_duration =
+            std::time::Duration::from_millis(self.config.daemon.mouse.polling_rate);
+
+        if !enabled {
+            sleep_duration = std::time::Duration::from_secs(10000000);
+        }
+
+        loop {
+            tokio::time::sleep(sleep_duration).await;
+            if !enabled {
+                continue;
+            }
+
+            let nx = self.config.workspaces.0 as usize;
+            let ny = self.config.workspaces.1 as usize;
+            let mut c = CursorPosition::get_async().await?;
+            let mut y = 0;
+            let mut x = 0;
+            if c.x <= w {
+                x += nx - 1;
+                c.x = self.monitor.width as i64 - m;
+            } else if c.x >= self.monitor.width as i64 - 1 - w {
+                x += 1;
+                c.x = m;
+            }
+            if c.y <= w {
+                y += ny - 1;
+                c.y = self.monitor.height as i64 - m;
+            } else if c.y >= self.monitor.height as i64 - 1 - w {
+                y += 1;
+                c.y = m;
+            }
+
+            if x + y == 0 {
+                continue;
+            }
+
+            let workspace = Workspace::get_active_async().await?;
+
+            let state = self.state.lock().await;
+
+            let Some((current_activity_index, Some(current_workspace_index))) =
+                state.get_indices(&workspace.name)
+            else {
+                println!("unknown workspace {}", workspace.name);
+                continue;
+            };
+
+            y += current_workspace_index / nx;
+            y %= ny;
+            x += current_workspace_index % nx;
+            x %= nx;
+
+            let new_workspace = &state.workspaces[current_activity_index][y * nx + x];
+            if new_workspace != &workspace.name {
+                state.move_to_workspace(new_workspace, false).await?;
+                Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
+            }
+        }
+    }
+}
+
+struct IpcDaemon {
+    state: Arc<tokio::sync::Mutex<State>>,
+    _config: Config,
+    sock: UnixListener,
+}
+impl IpcDaemon {
+    async fn new(state: Arc<tokio::sync::Mutex<State>>) -> Result<Self> {
+        let s = state.lock().await;
+        let config = s.config.clone();
+        drop(s);
+
+        // - [Unix sockets, the basics in Rust - Emmanuel Bosquet](https://emmanuelbosquet.com/2022/whatsaunixsocket/)
+        let sock_path = "/tmp/hyprkool.sock";
+        if std::fs::metadata(sock_path).is_ok() {
+            println!("A socket is already present. Deleting...");
+            std::fs::remove_file(sock_path)
+                .with_context(|| format!("could not delete previous socket at {:?}", sock_path))?;
+        }
+
+        let sock = UnixListener::bind(sock_path)?;
+        Ok(Self {
+            sock,
+            _config: config,
+            state,
+        })
+    }
+    async fn run(&mut self) -> Result<()> {
+        loop {
+            match self.sock.accept().await {
+                Ok((stream, _addr)) => {
+                    let mut sock = BufReader::new(stream);
+                    let mut line = String::new();
+                    sock.read_line(&mut line).await?;
+                    let message = serde_json::from_str::<Message>(&line)?;
+                    match message {
+                        Message::Command(Command::DaemonQuit) => {
+                            sock.write_all(&Message::IpcOk.msg()).await?;
+                            return Ok(());
+                        }
+                        Message::Command(command) => {
+                            match command.execute(self.state.clone(), true).await {
+                                Ok(_) => {
+                                    sock.write_all(&Message::IpcOk.msg()).await?;
+                                }
+                                Err(e) => {
+                                    sock.write_all(
+                                        &Message::IpcErr(format!("error: {:?}", e)).msg(),
+                                    )
+                                    .await?;
+                                }
+                            }
+                        }
+                        _ => {
+                            unreachable!();
+                        }
+                    }
+                    sock.flush().await?;
+                }
+                Err(e) => println!("{:?}", e),
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command.clone() {
-        Command::MouseLoop => {
+        Command::Daemon {
+            move_to_hyprkool_activity,
+        } => {
             let state = State::new(cli.config()?);
+            let state = Arc::new(tokio::sync::Mutex::new(state));
+            let mut md = MouseDaemon::new(state.clone()).await?;
+            let mut id = IpcDaemon::new(state).await?;
 
-            Dispatch::call_async(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Name(&state.workspaces[0][0]),
-            ))
-            .await?;
-
-            // TODO: multi monitor setup yaaaaaaaaaaaaaaaaa
-            let monitor = Monitor::get_active_async().await?;
-            let w = state.config.daemon.mouse.edge_width as i64;
-            let m = state.config.daemon.mouse.edge_margin as i64;
-
-            loop {
-                tokio::time::sleep(std::time::Duration::from_millis(
-                    state.config.daemon.mouse.polling_rate,
-                ))
-                .await;
-                let nx = state.config.workspaces.0 as usize;
-                let ny = state.config.workspaces.1 as usize;
-                let mut c = CursorPosition::get_async().await?;
-                let mut y = 0;
-                let mut x = 0;
-                if c.x <= w {
-                    x += nx - 1;
-                    c.x = monitor.width as i64 - m;
-                } else if c.x >= monitor.width as i64 - 1 - w {
-                    x += 1;
-                    c.x = m;
+            tokio::select! {
+                mouse = md.run(move_to_hyprkool_activity) => {
+                    return mouse;
                 }
-                if c.y <= w {
-                    y += ny - 1;
-                    c.y = monitor.height as i64 - m;
-                } else if c.y >= monitor.height as i64 - 1 - w {
-                    y += 1;
-                    c.y = m;
-                }
-
-                if x + y == 0 {
-                    continue;
-                }
-
-                let workspace = Workspace::get_active_async().await?;
-                let Some((current_activity_index, Some(current_workspace_index))) =
-                    state.get_indices(&workspace.name)
-                else {
-                    println!("unknown workspace {}", workspace.name);
-                    continue;
-                };
-
-                y += current_workspace_index / nx;
-                y %= ny;
-                x += current_workspace_index % nx;
-                x %= nx;
-
-                let new_workspace = &state.workspaces[current_activity_index][y * nx + x];
-                if new_workspace != &workspace.name {
-                    state.move_to_workspace(new_workspace, false).await?;
-                    Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
+                ipc = id.run() => {
+                    ipc?;
+                    println!("exiting daemon");
                 }
             }
         }
         Command::Info { command, monitor } => {
+            // TODO: any way to share this state with daemon?
             command.execute(State::new(cli.config()?), monitor).await?;
-        }
-        Command::RememberActivityWorkspace => {
-            // - [Unix sockets, the basics in Rust - Emmanuel Bosquet](https://emmanuelbosquet.com/2022/whatsaunixsocket/)
-            let sock_path = "/tmp/hyprkool.sock";
-
-            if std::fs::metadata(sock_path).is_ok() {
-                println!("A socket is already present. Deleting...");
-                std::fs::remove_file(sock_path).with_context(|| {
-                    format!("could not delete previous socket at {:?}", sock_path)
-                })?;
-            }
-
-            let sock = UnixListener::bind(sock_path)?;
-            let state = Arc::new(tokio::sync::Mutex::new(State::new(cli.config()?)));
-            loop {
-                match sock.accept().await {
-                    Ok((stream, _addr)) => {
-                        let mut sock = BufReader::new(stream);
-                        let mut line = String::new();
-                        sock.read_line(&mut line).await?;
-                        let message = serde_json::from_str::<Message>(&line)?;
-                        match message {
-                            Message::Command(Command::IpcQuit) => {
-                                break;
-                            }
-                            Message::Command(command) => {
-                                match command.execute(state.clone(), true).await {
-                                    Ok(_) => {
-                                        sock.write_all(&Message::IpcOk.msg()).await?;
-                                    }
-                                    Err(e) => {
-                                        sock.write_all(
-                                            &Message::IpcErr(format!("error: {:?}", e)).msg(),
-                                        )
-                                        .await?;
-                                    }
-                                }
-                            }
-                            _ => {
-                                unreachable!();
-                            }
-                        }
-                        sock.flush().await?;
-                    }
-                    Err(e) => println!("{:?}", e),
-                }
-            }
         }
         comm => {
             if let Ok(sock) = UnixStream::connect("/tmp/hyprkool.sock").await {
@@ -1093,7 +1175,7 @@ async fn main() -> Result<()> {
                 sock.flush().await?;
                 sock.shutdown().await?;
 
-                let sleep = tokio::time::sleep(Duration::from_secs_f32(0.3));
+                let sleep = tokio::time::sleep(Duration::from_millis(300));
                 let mut sock = BufReader::new(sock);
                 let mut line = String::new();
                 select! {
@@ -1107,7 +1189,6 @@ async fn main() -> Result<()> {
                             }
                             Message::IpcErr(message) => {
                                 println!("{}", message);
-                                println!("falling back to stateless commands");
                             }
                             _ => {
                                 unreachable!();
@@ -1115,11 +1196,16 @@ async fn main() -> Result<()> {
                         }
                     }
                     _ = sleep => {
-                        println!("timeout. could not connect to hyprkool. falling back to stateless commands");
+                        println!("timeout. could not connect to hyprkool");
                     }
                 }
             }
 
+            let config = cli.config()?;
+            if !config.daemon.fallback_commands {
+                return Ok(());
+            }
+            println!("falling back to stateless commands");
             let state = State::new(cli.config()?);
             comm.execute(Arc::new(tokio::sync::Mutex::new(state)), false)
                 .await?;
