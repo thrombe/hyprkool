@@ -57,11 +57,30 @@ impl Cli {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct Config {
-    pub activities: Vec<String>,
-    /// number of workspaces in x and y dimensions
-    pub workspaces: (u32, u32),
+#[serde(default, deny_unknown_fields)]
+pub struct DaemonConfig {
+    /// remember what workspace was last focused on an activity
+    pub remember_activity_focus: bool,
 
+    /// how long to wait for ipc responses before executing the command in ms
+    pub ipc_timeout: u32,
+
+    pub mouse: MouseConfig,
+}
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self {
+            remember_activity_focus: true,
+            ipc_timeout: 300,
+            mouse: Default::default(),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default, deny_unknown_fields)]
+pub struct MouseConfig {
+    pub switch_workspace_on_edge: bool,
     /// mouse polling rate in ms
     pub polling_rate: u64,
     /// number of pixels to consider as edge
@@ -69,14 +88,31 @@ pub struct Config {
     /// push cursor inside margin when it loops
     pub edge_margin: u64,
 }
+impl Default for MouseConfig {
+    fn default() -> Self {
+        Self {
+            switch_workspace_on_edge: true,
+            polling_rate: 300,
+            edge_width: 0,
+            edge_margin: 2,
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default, deny_unknown_fields)]
+pub struct Config {
+    pub activities: Vec<String>,
+    /// number of workspaces in x and y dimensions
+    pub workspaces: (u32, u32),
+    pub daemon: DaemonConfig,
+}
 impl Default for Config {
     fn default() -> Self {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
-            polling_rate: 300,
-            edge_width: 0,
-            edge_margin: 2,
+            daemon: Default::default(),
         }
     }
 }
@@ -946,12 +982,14 @@ async fn main() -> Result<()> {
 
             // TODO: multi monitor setup yaaaaaaaaaaaaaaaaa
             let monitor = Monitor::get_active_async().await?;
-            let w = state.config.edge_width as i64;
-            let m = state.config.edge_margin as i64;
+            let w = state.config.daemon.mouse.edge_width as i64;
+            let m = state.config.daemon.mouse.edge_margin as i64;
 
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(state.config.polling_rate))
-                    .await;
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    state.config.daemon.mouse.polling_rate,
+                ))
+                .await;
                 let nx = state.config.workspaces.0 as usize;
                 let ny = state.config.workspaces.1 as usize;
                 let mut c = CursorPosition::get_async().await?;
