@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
 use clap::{arg, command, Parser, Subcommand};
@@ -21,6 +16,10 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{UnixListener, UnixStream},
     select,
+    sync::{
+        mpsc::{Receiver, Sender},
+        Mutex,
+    },
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -125,6 +124,7 @@ impl Default for Config {
 pub enum Message {
     IpcOk,
     IpcErr(String),
+    IpcMessage(String),
     Command(Command),
 }
 impl Message {
@@ -240,7 +240,7 @@ pub enum Command {
 }
 
 impl Command {
-    async fn execute(self, state: Arc<tokio::sync::Mutex<State>>, stateful: bool) -> Result<()> {
+    async fn execute(self, state: Arc<Mutex<State>>, stateful: bool) -> Result<()> {
         let mut state = state.lock().await;
         let stateful = state.config.daemon.remember_activity_focus && stateful;
 
@@ -501,31 +501,81 @@ pub enum InfoCommand {
     },
 }
 
+#[derive(Clone, Debug)]
+struct InfoOutput {
+    stream: InfoOutputStream,
+    tx: Sender<()>,
+}
+impl InfoOutput {
+    fn new(stream: InfoOutputStream) -> (Self, Receiver<()>) {
+        let (tx, rx) = tokio::sync::mpsc::channel::<()>(1);
+        (Self { stream, tx }, rx)
+    }
+    async fn send_mesg(&self, mesg: String) -> Result<()> {
+        self.stream.send_mesg(mesg, self.tx.clone()).await
+    }
+}
+
+#[derive(Clone, Debug)]
+enum InfoOutputStream {
+    Stream(Arc<Mutex<UnixStream>>),
+    Stdout,
+}
+impl InfoOutputStream {
+    async fn _send_mesg(stream: &Arc<Mutex<UnixStream>>, mesg: String) -> Result<()> {
+        let mut stream = stream.lock().await;
+        stream.write_all(&Message::IpcMessage(mesg).msg()).await?;
+        stream.write_all("\n".as_bytes()).await?;
+        stream.flush().await?;
+        Ok(())
+    }
+
+    async fn send_mesg(&self, mesg: String, tx: Sender<()>) -> Result<()> {
+        match self {
+            InfoOutputStream::Stream(s) => {
+                if Self::_send_mesg(s, mesg).await.is_err() {
+                    tx.send(()).await?;
+                }
+            }
+            InfoOutputStream::Stdout => {
+                println!("{}", mesg);
+            }
+        }
+        Ok(())
+    }
+}
+
 impl InfoCommand {
-    async fn execute(self, state: State, monitor: bool) -> Result<()> {
+    async fn execute(
+        self,
+        stream: InfoOutputStream,
+        state: Arc<Mutex<State>>,
+        monitor: bool,
+    ) -> Result<()> {
         let mut ael = EventListener::new();
+        let (stream, mut exit) = InfoOutput::new(stream);
 
         match self {
             InfoCommand::WaybarActivityStatus => {
-                fn print_state(state: &State, name: &str) {
-                    state
-                        .get_activity_status_repr(name)
-                        .into_iter()
-                        .for_each(|a| {
-                            println!(
-                                "{}",
-                                serde_json::to_string(&WaybarText { text: a })
-                                    .expect("it will work")
-                            );
-                        });
+                async fn print_state(
+                    state: Arc<Mutex<State>>,
+                    name: String,
+                    stream: InfoOutput,
+                ) -> Result<()> {
+                    let state = state.lock().await;
+                    for a in state.get_activity_status_repr(&name).into_iter() {
+                        let msg = serde_json::to_string(&WaybarText { text: a })?;
+                        stream.send_mesg(msg).await?;
+                    }
+                    Ok(())
                 }
 
                 let workspace = Workspace::get_active_async().await?;
-                print_state(&state, &workspace.name);
+                print_state(state.clone(), workspace.name, stream.clone()).await?;
 
                 ael.add_workspace_change_handler(move |e| match e {
                     WorkspaceType::Regular(name) => {
-                        print_state(&state, &name);
+                        tokio::spawn(print_state(state.clone(), name, stream.clone()));
                     }
                     WorkspaceType::Special(..) => {}
                 });
@@ -533,37 +583,44 @@ impl InfoCommand {
             InfoCommand::WaybarActiveWindow => {
                 let windows = Arc::new(Mutex::new(Clients::get_async().await?));
 
-                let ws = windows.clone();
-                let print_status = move |addr: Option<Address>| {
-                    let mut ws = ws.lock().expect("could not read windows");
+                async fn print_status(
+                    stream: InfoOutput,
+                    addr: Option<Address>,
+                    ws: Arc<Mutex<Clients>>,
+                ) -> Result<()> {
+                    let mut ws = ws.lock().await;
                     let Some(addr) = addr else {
                         let w = WaybarText {
                             text: "Hyprland".to_owned(),
                         };
-                        println!("{}", serde_json::to_string(&w).unwrap());
-                        return;
+                        let msg = serde_json::to_string(&w)?;
+                        stream.send_mesg(msg).await?;
+                        return Ok(());
                     };
 
                     let mut w = ws.iter().find(|w| w.address == addr).cloned();
                     if w.is_none() {
-                        *ws = Clients::get().expect("could not get windows");
+                        *ws = Clients::get_async().await?;
                         w = ws.iter().find(|w| w.address == addr).cloned();
                     }
 
-                    println!(
-                        "{}",
-                        serde_json::to_string(&WaybarText {
-                            text: w.map(|w| w.initial_title).unwrap()
-                        })
-                        .unwrap()
-                    );
-                };
+                    let msg = serde_json::to_string(&WaybarText {
+                        text: w.map(|w| w.initial_title).unwrap(),
+                    })?;
+
+                    stream.send_mesg(msg).await?;
+                    Ok(())
+                }
 
                 let addr = Client::get_active_async().await?.map(|w| w.address);
-                print_status(addr);
+                print_status(stream.clone(), addr, windows.clone()).await?;
 
                 ael.add_active_window_change_handler(move |e| {
-                    print_status(e.map(|e| e.window_address));
+                    tokio::spawn(print_status(
+                        stream.clone(),
+                        e.map(|e| e.window_address),
+                        windows.clone(),
+                    ));
                 });
             }
             InfoCommand::Submap => {
@@ -571,8 +628,14 @@ impl InfoCommand {
                     println!("'info submap' not supported without --monitor");
                     return Ok(());
                 }
-                ael.add_sub_map_change_handler(|submap| {
-                    println!("{{\"submap\":\"{submap}\"}}");
+                let stream = stream.clone();
+                ael.add_sub_map_change_handler(move |submap| {
+                    let msg = format!("{{\"submap\":\"{}\"}}", submap);
+                    let stream = stream.clone();
+                    tokio::spawn(async move {
+                        let stream = stream.clone();
+                        stream.send_mesg(msg).await
+                    });
                 });
             }
             InfoCommand::ActiveWindow {
@@ -585,10 +648,12 @@ impl InfoCommand {
                     try_min_size,
                 )?));
 
-                let ws = window_states.clone();
-                let print_state = move |e: Option<WindowEventData>| {
-                    let workspace =
-                        Workspace::get_active().expect("could not get active workspace");
+                async fn print_state(
+                    stream: InfoOutput,
+                    e: Option<WindowEventData>,
+                    ws: Arc<Mutex<WindowStates>>,
+                ) -> Result<()> {
+                    let workspace = Workspace::get_active_async().await?;
                     let Some(e) = e else {
                         let w = WindowStatus {
                             title: "Hyprland".to_owned(),
@@ -598,10 +663,11 @@ impl InfoCommand {
                             workspace: workspace.name,
                             icon: PathBuf::new(),
                         };
-                        println!("{}", serde_json::to_string(&w).unwrap());
-                        return;
+                        let msg = serde_json::to_string(&w)?;
+                        stream.send_mesg(msg).await?;
+                        return Ok(());
                     };
-                    let mut ws = ws.lock().expect("could not read windows");
+                    let mut ws = ws.lock().await;
                     let w = ws
                         .get_window(e.window_address.clone())
                         .ok()
@@ -613,18 +679,20 @@ impl InfoCommand {
                             workspace: workspace.name,
                             icon: ws.get_default_app_icon().unwrap_or_default(),
                         });
-                    println!("{}", serde_json::to_string(&w).unwrap());
-                };
+                    let mesg = serde_json::to_string(&w)?;
+                    stream.send_mesg(mesg).await?;
+                    Ok(())
+                }
 
                 let w = Client::get_active_async().await?.map(|w| WindowEventData {
                     window_class: w.class,
                     window_title: w.title,
                     window_address: w.address,
                 });
-                print_state(w);
+                print_state(stream.clone(), w, window_states.clone()).await?;
 
                 ael.add_active_window_change_handler(move |e| {
-                    print_state(e);
+                    tokio::spawn(print_state(stream.clone(), e, window_states.clone()));
                 });
             }
             InfoCommand::ActiveWorkspaceWindows {
@@ -637,9 +705,13 @@ impl InfoCommand {
                     try_min_size,
                 )?));
 
-                let ws = window_states.clone();
-                let print_status = move |name: &str, except: Option<Address>| {
-                    let mut ws = ws.lock().expect("could not get lock");
+                async fn print_status(
+                    stream: InfoOutput,
+                    name: String,
+                    except: Option<Address>,
+                    ws: Arc<Mutex<WindowStates>>,
+                ) -> Result<()> {
+                    let mut ws = ws.lock().await;
                     let wds = ws
                         .windows
                         .iter()
@@ -651,59 +723,80 @@ impl InfoCommand {
                         .filter_map(|w| ws.get_window(w).ok())
                         .collect::<Vec<_>>();
 
-                    println!("{}", serde_json::to_string(&wds).unwrap());
-                };
+                    let msg = serde_json::to_string(&wds)?;
+                    stream.send_mesg(msg).await?;
+                    Ok(())
+                }
 
-                let w = Workspace::get_active()?;
-                print_status(&w.name, None);
+                let w = Workspace::get_active_async().await?;
+                print_status(stream.clone(), w.name, None, window_states.clone()).await?;
 
                 let ws = window_states.clone();
-                let ps = print_status.clone();
+                let s = stream.clone();
                 ael.add_window_open_handler(move |_| {
-                    let mut ws = ws.lock().expect("could not get lock");
-                    ws.windows = Clients::get().unwrap().to_vec();
-                    drop(ws);
-
-                    let w = Workspace::get_active().expect("could not get active workspace");
-                    ps(&w.name, None);
-                });
-                let ws = window_states.clone();
-                let ps = print_status.clone();
-                ael.add_window_moved_handler(move |_| {
-                    let mut ws = ws.lock().expect("could not get lock");
-                    ws.windows = Clients::get().unwrap().to_vec();
-                    drop(ws);
-
-                    let w = Workspace::get_active().expect("could not get active workspace");
-                    ps(&w.name, None);
-                });
-                let ps = print_status.clone();
-                let ws = window_states.clone();
-                ael.add_window_close_handler(move |addr| {
-                    let mut ws = ws.lock().expect("could not get lock");
-                    ws.windows.retain(|w| w.address != addr);
-                    drop(ws);
-
-                    let w = Workspace::get_active().expect("could not get active workspace");
-                    ps(&w.name, Some(addr));
-                });
-
-                let ps = print_status.clone();
-                ael.add_workspace_change_handler(move |e| {
-                    let name = match &e {
-                        WorkspaceType::Regular(name) => name.as_str(),
-                        WorkspaceType::Special(name) => {
-                            name.as_ref().map(|s| s.as_str()).unwrap_or("special")
+                    let ws = ws.clone();
+                    let s = s.clone();
+                    tokio::spawn(async move {
+                        let ws = ws.clone();
+                        {
+                            let mut ws = ws.lock().await;
+                            ws.windows = Clients::get_async().await?.to_vec();
                         }
+                        let w = Workspace::get_active_async().await?;
+                        print_status(s, w.name, None, ws.clone()).await?;
+                        Result::<()>::Ok(())
+                    });
+                });
+                let ws = window_states.clone();
+                let s = stream.clone();
+                ael.add_window_moved_handler(move |_| {
+                    let ws = ws.clone();
+                    let s = s.clone();
+                    tokio::spawn(async move {
+                        {
+                            let mut ws = ws.lock().await;
+                            ws.windows = Clients::get_async().await?.to_vec();
+                        }
+                        let w = Workspace::get_active_async().await?;
+                        print_status(s, w.name, None, ws).await?;
+                        Result::<()>::Ok(())
+                    });
+                });
+                let ws = window_states.clone();
+                let s = stream.clone();
+                ael.add_window_close_handler(move |addr| {
+                    let ws = ws.clone();
+                    let s = s.clone();
+                    tokio::spawn(async move {
+                        {
+                            let mut ws = ws.lock().await;
+                            ws.windows.retain(|w| w.address != addr);
+                        }
+                        let w = Workspace::get_active_async().await?;
+                        print_status(s.clone(), w.name, Some(addr), ws).await?;
+                        Result::<()>::Ok(())
+                    });
+                });
+
+                let ws = window_states.clone();
+                ael.add_workspace_change_handler(move |e| {
+                    let name = match e {
+                        WorkspaceType::Regular(name) => name,
+                        WorkspaceType::Special(name) => name.unwrap_or("special".to_owned()),
                     };
-                    ps(name, None);
+                    tokio::spawn(print_status(stream.clone(), name, None, ws.clone()));
                 });
             }
             InfoCommand::Workspaces => {
-                fn print_state(state: &State, name: &str) {
+                async fn print_state(
+                    stream: InfoOutput,
+                    state: Arc<Mutex<State>>,
+                    name: String,
+                ) -> Result<()> {
+                    let state = state.lock().await;
                     let Some((activity_index, Some(workspace_index))) = state.get_indices(name)
                     else {
-                        return;
+                        return Ok(());
                     };
 
                     let mut activity = Vec::new();
@@ -725,15 +818,17 @@ impl InfoCommand {
                     }
                     activity.push(wss);
 
-                    println!("{}", serde_json::to_string(&activity).unwrap());
+                    let mesg = serde_json::to_string(&activity)?;
+                    stream.send_mesg(mesg).await?;
+                    Ok(())
                 }
 
                 let workspace = Workspace::get_active_async().await?;
-                print_state(&state, &workspace.name);
+                print_state(stream.clone(), state.clone(), workspace.name).await?;
 
                 ael.add_workspace_change_handler(move |e| match e {
                     WorkspaceType::Regular(name) => {
-                        print_state(&state, &name);
+                        tokio::spawn(print_state(stream.clone(), state.clone(), name));
                     }
                     WorkspaceType::Special(..) => {}
                 });
@@ -741,7 +836,12 @@ impl InfoCommand {
             // TODO: maybe this can make InfoCommand::Workspace obsolete.
             // need to add more fields tho. (currectly focused activity)
             InfoCommand::AllWorkspaces => {
-                fn print_state(state: &State, name: &str) {
+                async fn print_state(
+                    stream: InfoOutput,
+                    state: Arc<Mutex<State>>,
+                    name: String,
+                ) -> Result<()> {
+                    let state = state.lock().await;
                     let mut activities = Vec::new();
                     for i in 0..state.activities.len() {
                         let mut activity = Vec::new();
@@ -756,7 +856,7 @@ impl InfoCommand {
                                 name: w.to_owned(),
                                 focus: false,
                             };
-                            if w == name {
+                            if w == &name {
                                 ws.focus = true;
                             }
                             wss.push(ws);
@@ -765,15 +865,17 @@ impl InfoCommand {
                         activities.push(activity);
                     }
 
-                    println!("{}", serde_json::to_string(&activities).unwrap());
+                    let mesg = serde_json::to_string(&activities)?;
+                    stream.send_mesg(mesg).await?;
+                    Ok(())
                 }
 
                 let workspace = Workspace::get_active_async().await?;
-                print_state(&state, &workspace.name);
+                print_state(stream.clone(), state.clone(), workspace.name).await?;
 
                 ael.add_workspace_change_handler(move |e| match e {
                     WorkspaceType::Regular(name) => {
-                        print_state(&state, &name);
+                        tokio::spawn(print_state(stream.clone(), state.clone(), name));
                     }
                     WorkspaceType::Special(..) => {}
                 });
@@ -784,18 +886,25 @@ impl InfoCommand {
                     return Ok(());
                 };
 
-                let print_state = move |w: &str| {
+                async fn print_state(
+                    stream: InfoOutput,
+                    w: String,
+                    state: Arc<Mutex<State>>,
+                ) -> Result<()> {
+                    let state = state.lock().await;
                     let acs = state
                         .activities
                         .iter()
                         .map(|name| ActivityStatus {
                             name: name.into(),
-                            focus: w == name,
+                            focus: &w == name,
                         })
                         .collect::<Vec<_>>();
-                    println!("{}", serde_json::to_string(&acs).unwrap());
-                };
-                print_state(w);
+                    let mesg = serde_json::to_string(&acs)?;
+                    stream.send_mesg(mesg).await?;
+                    Ok(())
+                }
+                print_state(stream.clone(), w.to_owned(), state.clone()).await?;
 
                 ael.add_workspace_change_handler(move |e| {
                     let name = match &e {
@@ -808,13 +917,18 @@ impl InfoCommand {
                     let Some(w) = name.split(':').next() else {
                         return;
                     };
-                    print_state(w);
+                    tokio::spawn(print_state(stream.clone(), w.to_owned(), state.clone()));
                 });
             }
         }
 
         if monitor {
-            ael.start_listener_async().await?;
+            tokio::select! {
+                r = ael.start_listener_async() => {
+                    r?;
+                }
+                _ = exit.recv() => {}
+            }
         }
 
         Ok(())
@@ -974,7 +1088,7 @@ impl State {
 }
 
 struct MouseDaemon {
-    state: Arc<tokio::sync::Mutex<State>>,
+    state: Arc<Mutex<State>>,
 
     // TODO: multi monitor setup yaaaaaaaaaaaaaaaaa
     monitor: Monitor,
@@ -982,7 +1096,7 @@ struct MouseDaemon {
     config: Config,
 }
 impl MouseDaemon {
-    async fn new(state: Arc<tokio::sync::Mutex<State>>) -> Result<Self> {
+    async fn new(state: Arc<Mutex<State>>) -> Result<Self> {
         let s = state.lock().await;
         let monitor = Monitor::get_active_async().await?;
         let config = s.config.clone();
@@ -1082,12 +1196,12 @@ impl MouseDaemon {
 }
 
 struct IpcDaemon {
-    state: Arc<tokio::sync::Mutex<State>>,
+    state: Arc<Mutex<State>>,
     _config: Config,
     sock: UnixListener,
 }
 impl IpcDaemon {
-    async fn new(state: Arc<tokio::sync::Mutex<State>>) -> Result<Self> {
+    async fn new(state: Arc<Mutex<State>>) -> Result<Self> {
         let s = state.lock().await;
         let config = s.config.clone();
         drop(s);
@@ -1119,6 +1233,15 @@ impl IpcDaemon {
                         Message::Command(Command::DaemonQuit) => {
                             sock.write_all(&Message::IpcOk.msg()).await?;
                             return Ok(());
+                        }
+                        Message::Command(Command::Info { command, monitor }) => {
+                            tokio::spawn(command.execute(
+                                InfoOutputStream::Stream(Arc::new(Mutex::new(sock.into_inner()))),
+                                self.state.clone(),
+                                monitor,
+                            ));
+                            // return Ok(());
+                            continue;
                         }
                         Message::Command(command) => {
                             match command.execute(self.state.clone(), true).await {
@@ -1154,7 +1277,7 @@ async fn main() -> Result<()> {
             move_to_hyprkool_activity,
         } => {
             let state = State::new(cli.config()?);
-            let state = Arc::new(tokio::sync::Mutex::new(state));
+            let state = Arc::new(Mutex::new(state));
             let mut md = MouseDaemon::new(state.clone()).await?;
             let mut id = IpcDaemon::new(state).await?;
 
@@ -1169,10 +1292,52 @@ async fn main() -> Result<()> {
             }
         }
         Command::Info { command, monitor } => {
-            // TODO: share this state with daemon
-            // should be possible by listening for ipc messages in client. and
-            // spawning a tokio task in daemon
-            command.execute(State::new(cli.config()?), monitor).await?;
+            if let Ok(sock) = UnixStream::connect("/tmp/hyprkool.sock").await {
+                let mut sock = BufWriter::new(sock);
+                sock.write_all(
+                    &Message::Command(Command::Info {
+                        command: command.clone(),
+                        monitor,
+                    })
+                    .msg(),
+                )
+                .await?;
+                sock.flush().await?;
+                sock.shutdown().await?;
+
+                let mut sock = BufReader::new(sock);
+                loop {
+                    let mut line = String::new();
+                    let _ = sock.read_line(&mut line).await?;
+
+                    let command = serde_json::from_str(&line)?;
+                    match command {
+                        Message::IpcMessage(message) => {
+                            println!("{}", message);
+                        }
+                        Message::IpcErr(message) => {
+                            println!("{}", message);
+                        }
+                        _ => {
+                            unreachable!();
+                        }
+                    }
+                }
+            }
+
+            let config = cli.config()?;
+            if !config.daemon.fallback_commands {
+                return Ok(());
+            }
+            dbg!("falling back to stateless commands");
+
+            command
+                .execute(
+                    InfoOutputStream::Stdout,
+                    Arc::new(Mutex::new(State::new(cli.config()?))),
+                    monitor,
+                )
+                .await?;
         }
         comm => {
             if let Ok(sock) = UnixStream::connect("/tmp/hyprkool.sock").await {
@@ -1214,8 +1379,7 @@ async fn main() -> Result<()> {
             }
             println!("falling back to stateless commands");
             let state = State::new(cli.config()?);
-            comm.execute(Arc::new(tokio::sync::Mutex::new(state)), false)
-                .await?;
+            comm.execute(Arc::new(Mutex::new(state)), false).await?;
         }
     }
 
