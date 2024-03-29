@@ -1164,7 +1164,9 @@ async fn main() -> Result<()> {
             }
         }
         Command::Info { command, monitor } => {
-            // TODO: any way to share this state with daemon?
+            // TODO: share this state with daemon
+            // should be possible by listening for ipc messages in client. and 
+            // spawning a tokio task in daemon
             command.execute(State::new(cli.config()?), monitor).await?;
         }
         comm => {
