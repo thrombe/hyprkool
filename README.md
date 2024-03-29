@@ -59,6 +59,16 @@ activities = ["my-default-activity", "my-activity"]
 # number of workspaces in x and y dimensions
 workspaces = [2, 2]
 
+[daemon]
+# remember last focused workspace in an activity
+remember_activity_focus = true
+
+# execute fallback commands if daemon cannot be reached
+fallback_commands = true
+
+[daemon.mouse]
+switch_workspace_on_edge = true
+
 # how often to poll for cursor position
 polling_rate = 300 # in ms
 
@@ -106,7 +116,7 @@ bind = $mainMod, SPACE, exec, hyprkool toggle-special-workspace -n minimized
 bind = $mainMod, s, exec, hyprkool toggle-special-workspace -n minimized -w -s
 
 # switch workspaces when mouse touches any of the edges
-exec-once = hyprkool mouse-loop
+exec-once = hyprkool daemon -m
 ```
 
 ## Info commands
@@ -122,7 +132,7 @@ and waybar (using [`exec`](https://github.com/Alexays/Waybar/wiki/Module:-Custom
 this kind of efficient updates.
 
 ### Eww config
-Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/9a714cb99af83c60151370565125ca99a1a2bddf/configma/tools/home/.config/eww/eww.yuck)
+Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/54674a180d2bb1b3b6bce358cbb8d67be07968ec/configma/tools/home/.config/eww/eww.yuck)
 
 
 ### Waybar config
