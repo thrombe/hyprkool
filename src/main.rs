@@ -40,7 +40,8 @@ impl Cli {
             .config_dir
             .clone()
             .map(PathBuf::from)
-            .or(dirs::config_dir().map(|pb| pb.join("hypr/hyprkool.toml")))
+            .or(dirs::config_dir().map(|pb| pb.join("hypr")))
+            .map(|pb| pb.join("hyprkool.toml"))
             .map(std::fs::read_to_string)
             .transpose()?
             .map(|s| toml::from_str::<Config>(&s))
