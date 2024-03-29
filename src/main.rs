@@ -131,6 +131,13 @@ impl Message {
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
+    Info {
+        #[command(subcommand)]
+        command: InfoCommand,
+
+        #[arg(long, short, default_value_t = false)]
+        monitor: bool,
+    },
     MouseLoop,
     IpcListen,
     IpcQuit,
@@ -225,13 +232,232 @@ pub enum Command {
         #[arg(short, long, requires("move_window"))]
         silent: bool,
     },
-    Info {
-        #[command(subcommand)]
-        command: InfoCommand,
+}
 
-        #[arg(long, short, default_value_t = false)]
-        monitor: bool,
-    },
+impl Command {
+    async fn execute(self, state: Arc<tokio::sync::Mutex<State>>, stateful: bool) -> Result<()> {
+        let mut state = state.lock().await;
+
+        if stateful {
+            let workspace = Workspace::get_active_async().await?;
+            let a = match &self {
+                Command::SwitchToActivity { name, move_window } => {
+                    Some((name.clone(), *move_window))
+                }
+                Command::NextActivity { cycle, move_window } => {
+                    let i = state
+                        .activities
+                        .iter()
+                        .position(|a| workspace.name.starts_with(a))
+                        .map(|i| {
+                            let mut i = i;
+                            let n = state.activities.len();
+                            if *cycle {
+                                i = (i + 1) % n;
+                            } else {
+                                i = (i + 1).min(n);
+                            }
+                            i
+                        })
+                        .unwrap_or(0);
+                    let a = state.activities[i].clone();
+                    state.remember_workspace(&workspace);
+                    Some((a, *move_window))
+                }
+                Command::PrevActivity { cycle, move_window } => {
+                    let i = state
+                        .activities
+                        .iter()
+                        .position(|a| workspace.name.starts_with(a))
+                        .map(|i| {
+                            let mut i = i as isize;
+                            let n = state.activities.len();
+                            if *cycle {
+                                i = (n as isize + i - 1) % n as isize;
+                            } else {
+                                i = (i - 1).max(0);
+                            }
+                            i as usize
+                        })
+                        .unwrap_or(0);
+                    let a = state.activities[i].clone();
+                    Some((a, *move_window))
+                }
+                _ => None,
+            };
+
+            if let Some((a, move_window)) = a {
+                if let Some(w) = state.focused.get(&a).cloned() {
+                    state.move_to_workspace(&w, move_window).await?;
+                    return Ok(());
+                }
+            }
+        }
+
+        match self {
+            Command::SwitchToWorkspace { name, move_window } => {
+                let (activity_index, workspace_index) =
+                    state.get_indices(&name).context("activity not found")?;
+                let workspace_index = workspace_index.context("workspace not found")?;
+                let new_workspace = &state.workspaces[activity_index][workspace_index];
+                state.move_to_workspace(new_workspace, move_window).await?;
+            }
+            Command::SwitchToWorkspaceInActivity { name, move_window } => {
+                let workspace = Workspace::get_active_async().await?;
+                let activity_index = state
+                    .get_activity_index(&workspace.name)
+                    .context("could not get current activity")?;
+                let activity = &state.activities[activity_index];
+                let new_workspace = format!("{activity}:{name}");
+                state.move_to_workspace(&new_workspace, move_window).await?;
+            }
+            Command::SwitchToActivity {
+                mut name,
+                move_window,
+            } => {
+                let workspace = Workspace::get_active_async().await?;
+                if let Some(activity_index) = state.get_activity_index(&workspace.name) {
+                    let activity = &state.activities[activity_index];
+                    let id = workspace
+                        .name
+                        .strip_prefix(activity)
+                        .expect("just checked this");
+                    name.push_str(id);
+                } else {
+                    name.push_str("(1 1)");
+                };
+                state.move_to_workspace(&name, move_window).await?;
+            }
+            Command::NextActivity { cycle, move_window } => {
+                let workspace = Workspace::get_active_async().await?;
+                let activity_index = state.get_activity_index(&workspace.name);
+                let new_activity_index = activity_index
+                    .map(|i| {
+                        let mut i = i;
+                        if cycle {
+                            i += 1;
+                            i %= state.activities.len();
+                        } else {
+                            i = i.min(state.activities.len() - 1);
+                        }
+                        i
+                    })
+                    .unwrap_or(0);
+                let id =
+                    activity_index.and_then(|i| workspace.name.strip_prefix(&state.activities[i]));
+                let mut name = state.activities[new_activity_index].clone();
+                if let Some(id) = id {
+                    name.push_str(id);
+                } else {
+                    name = state.workspaces[new_activity_index][0].clone();
+                };
+                state.remember_workspace(&workspace);
+                state.move_to_workspace(&name, move_window).await?;
+            }
+            Command::PrevActivity { cycle, move_window } => {
+                let workspace = Workspace::get_active_async().await?;
+                let activity_index = state.get_activity_index(&workspace.name);
+                let new_activity_index = activity_index
+                    .map(|i| {
+                        let mut i = i as isize;
+                        if cycle {
+                            i += state.activities.len() as isize - 1;
+                            i %= state.activities.len() as isize;
+                        } else {
+                            i = i.max(0);
+                        }
+                        i as usize
+                    })
+                    .unwrap_or(0);
+                let id =
+                    activity_index.and_then(|i| workspace.name.strip_prefix(&state.activities[i]));
+                let activity_index = new_activity_index;
+                let mut name = state.activities[activity_index].clone();
+                if let Some(id) = id {
+                    name.push_str(id);
+                } else {
+                    name = state.workspaces[activity_index][0].clone();
+                };
+                state.remember_workspace(&workspace);
+                state.move_to_workspace(&name, move_window).await?;
+            }
+            Command::MoveRight { cycle, move_window } => {
+                let workspace = state.moved_workspace(1, 0, cycle).await?;
+                state.move_to_workspace(workspace, move_window).await?;
+            }
+            Command::MoveLeft { cycle, move_window } => {
+                let workspace = state.moved_workspace(-1, 0, cycle).await?;
+                state.move_to_workspace(workspace, move_window).await?;
+            }
+            Command::MoveUp { cycle, move_window } => {
+                let workspace = state.moved_workspace(0, -1, cycle).await?;
+                state.move_to_workspace(workspace, move_window).await?;
+            }
+            Command::MoveDown { cycle, move_window } => {
+                let workspace = state.moved_workspace(0, 1, cycle).await?;
+                state.move_to_workspace(workspace, move_window).await?;
+            }
+            Command::ToggleSpecialWorkspace {
+                name,
+                move_window,
+                silent,
+            } => {
+                if !move_window {
+                    state.toggle_special_workspace(name).await?;
+                    return Ok(());
+                }
+                let window = Client::get_active_async()
+                    .await?
+                    .context("No active window")?;
+                let workspace = Workspace::get_active_async().await?;
+
+                let special_workspace = format!("special:{}", &name);
+                let active_workspace = &workspace.name;
+
+                if window.workspace.name == special_workspace {
+                    if silent {
+                        let windows = Clients::get_async().await?;
+                        let c = windows
+                            .iter()
+                            .filter(|w| w.workspace.id == window.workspace.id)
+                            .count();
+                        if c == 1 {
+                            // keep focus if moving the last window from special to active workspace
+                            state.move_to_workspace(active_workspace, true).await?;
+                        } else {
+                            state.move_window_to_workspace(active_workspace).await?;
+                        }
+                    } else {
+                        state.move_to_workspace(active_workspace, true).await?;
+                    }
+                } else {
+                    state.move_window_to_special_workspace(name.clone()).await?;
+                    if !silent {
+                        state.toggle_special_workspace(name).await?;
+                    }
+                };
+            }
+            Command::FocusWindow { address } => {
+                let windows = Clients::get_async().await?;
+                let cursor = CursorPosition::get_async().await?;
+                for w in windows {
+                    if w.address.to_string() == address {
+                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
+                            w.address,
+                        )))
+                        .await?;
+                        Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
+                        break;
+                    }
+                }
+            }
+            _ => {
+                return Err(anyhow!("cannot ececute these commands here"));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -738,232 +964,6 @@ impl State {
         if let Some(a) = a {
             self.focused.insert(a, w.name.clone());
         }
-    }
-}
-
-impl Command {
-    async fn execute(self, state: Arc<tokio::sync::Mutex<State>>, stateful: bool) -> Result<()> {
-        let mut state = state.lock().await;
-
-        if stateful {
-            let workspace = Workspace::get_active_async().await?;
-            let a = match &self {
-                Command::SwitchToActivity { name, move_window } => {
-                    Some((name.clone(), *move_window))
-                }
-                Command::NextActivity { cycle, move_window } => {
-                    let i = state
-                        .activities
-                        .iter()
-                        .position(|a| workspace.name.starts_with(a))
-                        .map(|i| {
-                            let mut i = i;
-                            let n = state.activities.len();
-                            if *cycle {
-                                i = (i + 1) % n;
-                            } else {
-                                i = (i + 1).min(n);
-                            }
-                            i
-                        })
-                        .unwrap_or(0);
-                    let a = state.activities[i].clone();
-                    state.remember_workspace(&workspace);
-                    Some((a, *move_window))
-                }
-                Command::PrevActivity { cycle, move_window } => {
-                    let i = state
-                        .activities
-                        .iter()
-                        .position(|a| workspace.name.starts_with(a))
-                        .map(|i| {
-                            let mut i = i as isize;
-                            let n = state.activities.len();
-                            if *cycle {
-                                i = (n as isize + i - 1) % n as isize;
-                            } else {
-                                i = (i - 1).max(0);
-                            }
-                            i as usize
-                        })
-                        .unwrap_or(0);
-                    let a = state.activities[i].clone();
-                    Some((a, *move_window))
-                }
-                _ => None,
-            };
-
-            if let Some((a, move_window)) = a {
-                if let Some(w) = state.focused.get(&a).cloned() {
-                    state.move_to_workspace(&w, move_window).await?;
-                    return Ok(());
-                }
-            }
-        }
-
-        match self {
-            Command::SwitchToWorkspace { name, move_window } => {
-                let (activity_index, workspace_index) =
-                    state.get_indices(&name).context("activity not found")?;
-                let workspace_index = workspace_index.context("workspace not found")?;
-                let new_workspace = &state.workspaces[activity_index][workspace_index];
-                state.move_to_workspace(new_workspace, move_window).await?;
-            }
-            Command::SwitchToWorkspaceInActivity { name, move_window } => {
-                let workspace = Workspace::get_active_async().await?;
-                let activity_index = state
-                    .get_activity_index(&workspace.name)
-                    .context("could not get current activity")?;
-                let activity = &state.activities[activity_index];
-                let new_workspace = format!("{activity}:{name}");
-                state.move_to_workspace(&new_workspace, move_window).await?;
-            }
-            Command::SwitchToActivity {
-                mut name,
-                move_window,
-            } => {
-                let workspace = Workspace::get_active_async().await?;
-                if let Some(activity_index) = state.get_activity_index(&workspace.name) {
-                    let activity = &state.activities[activity_index];
-                    let id = workspace
-                        .name
-                        .strip_prefix(activity)
-                        .expect("just checked this");
-                    name.push_str(id);
-                } else {
-                    name.push_str("(1 1)");
-                };
-                state.move_to_workspace(&name, move_window).await?;
-            }
-            Command::NextActivity { cycle, move_window } => {
-                let workspace = Workspace::get_active_async().await?;
-                let activity_index = state.get_activity_index(&workspace.name);
-                let new_activity_index = activity_index
-                    .map(|i| {
-                        let mut i = i;
-                        if cycle {
-                            i += 1;
-                            i %= state.activities.len();
-                        } else {
-                            i = i.min(state.activities.len() - 1);
-                        }
-                        i
-                    })
-                    .unwrap_or(0);
-                let id =
-                    activity_index.and_then(|i| workspace.name.strip_prefix(&state.activities[i]));
-                let mut name = state.activities[new_activity_index].clone();
-                if let Some(id) = id {
-                    name.push_str(id);
-                } else {
-                    name = state.workspaces[new_activity_index][0].clone();
-                };
-                state.remember_workspace(&workspace);
-                state.move_to_workspace(&name, move_window).await?;
-            }
-            Command::PrevActivity { cycle, move_window } => {
-                let workspace = Workspace::get_active_async().await?;
-                let activity_index = state.get_activity_index(&workspace.name);
-                let new_activity_index = activity_index
-                    .map(|i| {
-                        let mut i = i as isize;
-                        if cycle {
-                            i += state.activities.len() as isize - 1;
-                            i %= state.activities.len() as isize;
-                        } else {
-                            i = i.max(0);
-                        }
-                        i as usize
-                    })
-                    .unwrap_or(0);
-                let id =
-                    activity_index.and_then(|i| workspace.name.strip_prefix(&state.activities[i]));
-                let activity_index = new_activity_index;
-                let mut name = state.activities[activity_index].clone();
-                if let Some(id) = id {
-                    name.push_str(id);
-                } else {
-                    name = state.workspaces[activity_index][0].clone();
-                };
-                state.remember_workspace(&workspace);
-                state.move_to_workspace(&name, move_window).await?;
-            }
-            Command::MoveRight { cycle, move_window } => {
-                let workspace = state.moved_workspace(1, 0, cycle).await?;
-                state.move_to_workspace(workspace, move_window).await?;
-            }
-            Command::MoveLeft { cycle, move_window } => {
-                let workspace = state.moved_workspace(-1, 0, cycle).await?;
-                state.move_to_workspace(workspace, move_window).await?;
-            }
-            Command::MoveUp { cycle, move_window } => {
-                let workspace = state.moved_workspace(0, -1, cycle).await?;
-                state.move_to_workspace(workspace, move_window).await?;
-            }
-            Command::MoveDown { cycle, move_window } => {
-                let workspace = state.moved_workspace(0, 1, cycle).await?;
-                state.move_to_workspace(workspace, move_window).await?;
-            }
-            Command::ToggleSpecialWorkspace {
-                name,
-                move_window,
-                silent,
-            } => {
-                if !move_window {
-                    state.toggle_special_workspace(name).await?;
-                    return Ok(());
-                }
-                let window = Client::get_active_async()
-                    .await?
-                    .context("No active window")?;
-                let workspace = Workspace::get_active_async().await?;
-
-                let special_workspace = format!("special:{}", &name);
-                let active_workspace = &workspace.name;
-
-                if window.workspace.name == special_workspace {
-                    if silent {
-                        let windows = Clients::get_async().await?;
-                        let c = windows
-                            .iter()
-                            .filter(|w| w.workspace.id == window.workspace.id)
-                            .count();
-                        if c == 1 {
-                            // keep focus if moving the last window from special to active workspace
-                            state.move_to_workspace(active_workspace, true).await?;
-                        } else {
-                            state.move_window_to_workspace(active_workspace).await?;
-                        }
-                    } else {
-                        state.move_to_workspace(active_workspace, true).await?;
-                    }
-                } else {
-                    state.move_window_to_special_workspace(name.clone()).await?;
-                    if !silent {
-                        state.toggle_special_workspace(name).await?;
-                    }
-                };
-            }
-            Command::FocusWindow { address } => {
-                let windows = Clients::get_async().await?;
-                let cursor = CursorPosition::get_async().await?;
-                for w in windows {
-                    if w.address.to_string() == address {
-                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
-                            w.address,
-                        )))
-                        .await?;
-                        Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
-                        break;
-                    }
-                }
-            }
-            _ => {
-                return Err(anyhow!("cannot ececute these commands here"));
-            }
-        }
-
-        Ok(())
     }
 }
 
