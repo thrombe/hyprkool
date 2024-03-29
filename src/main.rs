@@ -64,7 +64,6 @@ pub struct DaemonConfig {
     // pub enable: bool,
     /// how long to wait for ipc responses before executing the command in ms
     // pub ipc_timeout: u64,
-
     pub fallback_commands: bool,
 
     /// remember what workspace was last focused on an activity
@@ -1062,6 +1061,12 @@ impl MouseDaemon {
                 continue;
             };
 
+            if let Some(window) = Client::get_active_async().await? {
+                if window.fullscreen && window.fullscreen_mode == 0 {
+                    continue;
+                }
+            }
+
             y += current_workspace_index / nx;
             y %= ny;
             x += current_workspace_index % nx;
@@ -1165,7 +1170,7 @@ async fn main() -> Result<()> {
         }
         Command::Info { command, monitor } => {
             // TODO: share this state with daemon
-            // should be possible by listening for ipc messages in client. and 
+            // should be possible by listening for ipc messages in client. and
             // spawning a tokio task in daemon
             command.execute(State::new(cli.config()?), monitor).await?;
         }
