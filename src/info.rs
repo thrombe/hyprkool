@@ -358,11 +358,14 @@ impl InfoCommand {
                     let mut activity = Vec::new();
                     let nx = state.config.workspaces.0 as usize;
                     let mut wss = Vec::new();
-                    let focii = state
-                        .named_focii
-                        .iter()
-                        .map(|(k, v)| (v.to_owned(), k.to_owned()))
-                        .collect::<HashMap<_, _>>();
+                    let mut focii = HashMap::<String, Vec<String>>::new();
+                    state.named_focii.iter().for_each(|(k, v)| {
+                        if let Some(fl) = focii.get_mut(k) {
+                            fl.push(v.clone());
+                        } else {
+                            focii.insert(k.clone(), vec![v.clone()]);
+                        }
+                    });
                     for (i, w) in state.workspaces[activity_index].iter().enumerate() {
                         if i % nx == 0 && i > 0 {
                             activity.push(wss);
@@ -371,7 +374,7 @@ impl InfoCommand {
                         let mut ws = WorkspaceStatus {
                             name: w.to_owned(),
                             focused: false,
-                            named_focus: focii.get(w).map(|s| s.as_str()).unwrap_or("").to_owned(),
+                            named_focus: focii.get(w).cloned().unwrap_or_default(),
                         };
                         if i == workspace_index {
                             ws.focused = true;
@@ -405,11 +408,14 @@ impl InfoCommand {
                 ) -> Result<()> {
                     let state = state.lock().await;
                     let mut activities = Vec::new();
-                    let focii = state
-                        .named_focii
-                        .iter()
-                        .map(|(k, v)| (v.to_owned(), k.to_owned()))
-                        .collect::<HashMap<_, _>>();
+                    let mut focii = HashMap::<String, Vec<String>>::new();
+                    state.named_focii.iter().for_each(|(k, v)| {
+                        if let Some(fl) = focii.get_mut(v) {
+                            fl.push(k.clone());
+                        } else {
+                            focii.insert(v.clone(), vec![k.clone()]);
+                        }
+                    });
                     for i in 0..state.activities.len() {
                         let mut activity = Vec::new();
                         let nx = state.config.workspaces.0 as usize;
@@ -422,11 +428,7 @@ impl InfoCommand {
                             let mut ws = WorkspaceStatus {
                                 name: w.to_owned(),
                                 focused: false,
-                                named_focus: focii
-                                    .get(w)
-                                    .map(|s| s.as_str())
-                                    .unwrap_or("")
-                                    .to_owned(),
+                                named_focus: focii.get(w).cloned().unwrap_or_default(),
                             };
                             if w == &name {
                                 ws.focused = true;
@@ -522,7 +524,7 @@ struct ActivityStatus {
 struct WorkspaceStatus {
     name: String,
     focused: bool,
-    named_focus: String,
+    named_focus: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
