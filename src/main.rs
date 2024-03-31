@@ -113,6 +113,10 @@ async fn main() -> Result<()> {
                     let mut line = String::new();
                     let _ = sock.read_line(&mut line).await?;
 
+                    if !monitor && line.is_empty() {
+                        return Ok(());
+                    }
+
                     let command = serde_json::from_str(&line)?;
                     match command {
                         Message::IpcMessage(message) => {
