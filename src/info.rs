@@ -365,10 +365,10 @@ impl InfoCommand {
                         }
                         let mut ws = WorkspaceStatus {
                             name: w.to_owned(),
-                            focus: false,
+                            focused: false,
                         };
                         if i == workspace_index {
-                            ws.focus = true;
+                            ws.focused = true;
                         }
                         wss.push(ws);
                     }
@@ -410,10 +410,10 @@ impl InfoCommand {
                             }
                             let mut ws = WorkspaceStatus {
                                 name: w.to_owned(),
-                                focus: false,
+                                focused: false,
                             };
                             if w == &name {
-                                ws.focus = true;
+                                ws.focused = true;
                             }
                             wss.push(ws);
                         }
@@ -453,7 +453,7 @@ impl InfoCommand {
                         .iter()
                         .map(|name| ActivityStatus {
                             name: name.into(),
-                            focus: &w == name,
+                            focused: &w == name,
                         })
                         .collect::<Vec<_>>();
                     let mesg = serde_json::to_string(&acs)?;
@@ -499,13 +499,13 @@ struct WaybarText {
 #[derive(Serialize, Debug)]
 struct ActivityStatus {
     name: String,
-    focus: bool,
+    focused: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 struct WorkspaceStatus {
     name: String,
-    focus: bool,
+    focused: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
