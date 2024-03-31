@@ -201,6 +201,15 @@ impl Command {
                 move_window,
             } => {
                 let workspace = Workspace::get_active_async().await?;
+                if state.get_activity_index(&name).is_none() {
+                    state.activities.push(name.clone());
+                    let w = state.workspaces[0]
+                        .iter()
+                        .flat_map(|w| w.split(':').skip(1))
+                        .map(|w| format!("{}:{}", &name, w))
+                        .collect();
+                    state.workspaces.push(w);
+                }
                 if let Some(activity_index) = state.get_activity_index(&workspace.name) {
                     let activity = &state.activities[activity_index];
                     let id = workspace
