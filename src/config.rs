@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -52,6 +54,8 @@ pub struct Config {
     pub activities: Vec<String>,
     /// number of workspaces in x and y dimensions
     pub workspaces: (u32, u32),
+    pub default_named_focus: String,
+    pub named_focii: HashMap<String, String>,
     pub daemon: DaemonConfig,
 }
 impl Default for Config {
@@ -59,6 +63,8 @@ impl Default for Config {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
+            default_named_focus: "default".into(),
+            named_focii: Default::default(),
             daemon: Default::default(),
         }
     }

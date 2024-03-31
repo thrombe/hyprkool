@@ -116,6 +116,14 @@ pub enum Command {
         #[arg(short, long, requires("move_window"))]
         silent: bool,
     },
+    SwitchNamedFocus {
+        #[arg(short, long)]
+        name: String,
+
+        /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
+    },
 }
 
 impl Command {
@@ -184,7 +192,7 @@ impl Command {
                 let (activity_index, workspace_index) =
                     state.get_indices(&name).context("activity not found")?;
                 let workspace_index = workspace_index.context("workspace not found")?;
-                let new_workspace = &state.workspaces[activity_index][workspace_index];
+                let new_workspace = state.workspaces[activity_index][workspace_index].clone();
                 state.move_to_workspace(new_workspace, move_window).await?;
             }
             Command::SwitchToWorkspaceInActivity { name, move_window } => {
@@ -276,19 +284,19 @@ impl Command {
                 state.move_to_workspace(&name, move_window).await?;
             }
             Command::MoveRight { cycle, move_window } => {
-                let workspace = state.moved_workspace(1, 0, cycle).await?;
+                let workspace = state.moved_workspace(1, 0, cycle).await?.to_owned();
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::MoveLeft { cycle, move_window } => {
-                let workspace = state.moved_workspace(-1, 0, cycle).await?;
+                let workspace = state.moved_workspace(-1, 0, cycle).await?.to_owned();
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::MoveUp { cycle, move_window } => {
-                let workspace = state.moved_workspace(0, -1, cycle).await?;
+                let workspace = state.moved_workspace(0, -1, cycle).await?.to_owned();
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::MoveDown { cycle, move_window } => {
-                let workspace = state.moved_workspace(0, 1, cycle).await?;
+                let workspace = state.moved_workspace(0, 1, cycle).await?.to_owned();
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::ToggleSpecialWorkspace {
@@ -343,6 +351,15 @@ impl Command {
                         Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
                         break;
                     }
+                }
+            }
+            Command::SwitchNamedFocus { name, move_window } => {
+                let workspace = Workspace::get_active_async().await?;
+                let f = state.current_named_focus.clone();
+                let _ = state.named_focii.insert(f, workspace.name);
+                state.current_named_focus = name.clone();
+                if let Some(f) = state.named_focii.get(&name).map(|s| s.to_owned()) {
+                    state.move_to_workspace(f, move_window).await?;
                 }
             }
             _ => {

@@ -12,6 +12,8 @@ use crate::config::Config;
 #[derive(Debug)]
 pub struct State {
     pub focused: HashMap<String, String>,
+    pub current_named_focus: String,
+    pub named_focii: HashMap<String, String>,
     pub activities: Vec<String>,
     pub workspaces: Vec<Vec<String>>,
     pub config: Config,
@@ -37,6 +39,8 @@ impl State {
 
         Self {
             focused: HashMap::new(),
+            current_named_focus: config.default_named_focus.clone(),
+            named_focii: config.named_focii.clone(),
             activities,
             workspaces: cooked_workspaces,
             config,
@@ -82,8 +86,15 @@ impl State {
         Ok(&self.workspaces[activity_index][(iy * nx + ix) as usize])
     }
 
-    pub async fn move_to_workspace(&self, name: impl AsRef<str>, move_window: bool) -> Result<()> {
+    // TODO: bad bad. don't have this modify state
+    pub async fn move_to_workspace(
+        &mut self,
+        name: impl AsRef<str>,
+        move_window: bool,
+    ) -> Result<()> {
         let name = name.as_ref();
+        self.named_focii
+            .insert(self.current_named_focus.clone(), name.to_owned());
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
                 WorkspaceIdentifierWithSpecial::Name(name),

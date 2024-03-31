@@ -358,6 +358,11 @@ impl InfoCommand {
                     let mut activity = Vec::new();
                     let nx = state.config.workspaces.0 as usize;
                     let mut wss = Vec::new();
+                    let focii = state
+                        .named_focii
+                        .iter()
+                        .map(|(k, v)| (v.to_owned(), k.to_owned()))
+                        .collect::<HashMap<_, _>>();
                     for (i, w) in state.workspaces[activity_index].iter().enumerate() {
                         if i % nx == 0 && i > 0 {
                             activity.push(wss);
@@ -366,6 +371,7 @@ impl InfoCommand {
                         let mut ws = WorkspaceStatus {
                             name: w.to_owned(),
                             focused: false,
+                            named_focus: focii.get(w).map(|s| s.as_str()).unwrap_or("").to_owned(),
                         };
                         if i == workspace_index {
                             ws.focused = true;
@@ -399,6 +405,11 @@ impl InfoCommand {
                 ) -> Result<()> {
                     let state = state.lock().await;
                     let mut activities = Vec::new();
+                    let focii = state
+                        .named_focii
+                        .iter()
+                        .map(|(k, v)| (v.to_owned(), k.to_owned()))
+                        .collect::<HashMap<_, _>>();
                     for i in 0..state.activities.len() {
                         let mut activity = Vec::new();
                         let nx = state.config.workspaces.0 as usize;
@@ -411,6 +422,11 @@ impl InfoCommand {
                             let mut ws = WorkspaceStatus {
                                 name: w.to_owned(),
                                 focused: false,
+                                named_focus: focii
+                                    .get(w)
+                                    .map(|s| s.as_str())
+                                    .unwrap_or("")
+                                    .to_owned(),
                             };
                             if w == &name {
                                 ws.focused = true;
@@ -506,6 +522,7 @@ struct ActivityStatus {
 struct WorkspaceStatus {
     name: String,
     focused: bool,
+    named_focus: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

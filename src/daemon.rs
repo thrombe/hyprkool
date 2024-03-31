@@ -4,7 +4,8 @@ use anyhow::{Context, Result};
 use hyprland::{
     data::{Client, CursorPosition, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
-    shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
+    event_listener::EventListener,
+    shared::{HyprData, HyprDataActive, HyprDataActiveOptional, WorkspaceType},
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -93,7 +94,7 @@ impl MouseDaemon {
 
             let workspace = Workspace::get_active_async().await?;
 
-            let state = self.state.lock().await;
+            let mut state = self.state.lock().await;
 
             let Some((current_activity_index, Some(current_workspace_index))) =
                 state.get_indices(&workspace.name)
@@ -113,8 +114,8 @@ impl MouseDaemon {
             x += current_workspace_index % nx;
             x %= nx;
 
-            let new_workspace = &state.workspaces[current_activity_index][y * nx + x];
-            if new_workspace != &workspace.name {
+            let new_workspace = state.workspaces[current_activity_index][y * nx + x].to_owned();
+            if new_workspace != workspace.name {
                 state.move_to_workspace(new_workspace, false).await?;
                 Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
             }
@@ -148,7 +149,7 @@ impl IpcDaemon {
             state,
         })
     }
-    pub async fn run(&mut self) -> Result<()> {
+    async fn listen_loop(&mut self) -> Result<()> {
         loop {
             match self.sock.accept().await {
                 Ok((stream, _addr)) => {
@@ -190,6 +191,40 @@ impl IpcDaemon {
                     sock.flush().await?;
                 }
                 Err(e) => println!("{:?}", e),
+            }
+        }
+    }
+
+    async fn update(state: Arc<Mutex<State>>) -> Result<()> {
+        let mut el = EventListener::new();
+
+        // let s = state.clone();
+        // el.add_workspace_change_handler(move |e| {
+        //     let s = s.clone();
+        //     tokio::spawn(async move {
+        //         let name = match e {
+        //             WorkspaceType::Regular(n) => n,
+        //             WorkspaceType::Special(n) => n.unwrap_or("special".into()),
+        //         };
+        //         let mut state = s.lock().await;
+        //         let f = state.current_focus.clone();
+        //         state.focii.insert(f, name);
+        //     });
+        // });
+
+        el.start_listener_async().await?;
+        Ok(())
+    }
+
+    pub async fn run(&mut self) -> Result<()> {
+        let s = self.state.clone();
+
+        tokio::select! {
+            listen = self.listen_loop() => {
+                listen
+            }
+            update = Self::update(s) => {
+                update
             }
         }
     }
