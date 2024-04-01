@@ -4,7 +4,8 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 # Features
 - ability to switch desktops when cursor touches screen edges
 - grid layout
-- a super simple workspace indicator using waybar
+- info commands for tools like eww and waybar
+- an optional daemon for stateful commands
 
 # Limitations
 - hyprland plugins can not yet control animation directionality
@@ -115,7 +116,19 @@ bind = $mainMod, SPACE, exec, hyprkool toggle-special-workspace -n minimized
 # move active window to special workspace without switching to that workspace
 bind = $mainMod, s, exec, hyprkool toggle-special-workspace -n minimized -w -s
 
-# switch workspaces when mouse touches any of the edges
+# switch to named focus
+bind = $mainMod, 1, exec, hyprkool switch-named-focus -n 1
+bind = $mainMod, 2, exec, hyprkool switch-named-focus -n 2
+bind = $mainMod, 3, exec, hyprkool switch-named-focus -n 3
+# set / delete named focus
+bind = $mainMod SHIFT, 1, exec, hyprkool set-named-focus -n 1
+bind = $mainMod SHIFT, 2, exec, hyprkool set-named-focus -n 2
+bind = $mainMod SHIFT, 3, exec, hyprkool set-named-focus -n 3
+
+# this is optional, but it can provide features like
+# - remembering the last focused workspace in an activity
+# - switch workspaces when mouse touches screen edges
+# - named focus
 exec-once = hyprkool daemon -m
 ```
 
