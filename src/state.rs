@@ -19,7 +19,7 @@ pub struct NamedFocus {
 #[derive(Debug)]
 pub struct State {
     pub focused: HashMap<String, String>,
-    pub current_named_focus: String,
+    pub current_named_focus: Option<String>,
     pub named_focii: HashMap<String, NamedFocus>,
     pub activities: Vec<String>,
     pub workspaces: Vec<Vec<String>>,
@@ -99,19 +99,23 @@ impl State {
         move_window: bool,
     ) -> Result<()> {
         let name = name.as_ref();
-        if let Some(nf) = self.named_focii.get_mut(&self.current_named_focus) {
-            if !nf.locked {
-                nf.workspace = name.to_owned();
+
+        if let Some(current) = self.current_named_focus.as_ref() {
+            if let Some(nf) = self.named_focii.get_mut(current) {
+                if !nf.locked {
+                    nf.workspace = name.to_owned();
+                }
+            } else {
+                self.named_focii.insert(
+                    current.clone(),
+                    NamedFocus {
+                        workspace: name.to_owned(),
+                        locked: false,
+                    },
+                );
             }
-        } else {
-            self.named_focii.insert(
-                self.current_named_focus.clone(),
-                NamedFocus {
-                    workspace: name.to_owned(),
-                    locked: false,
-                },
-            );
         }
+
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
                 WorkspaceIdentifierWithSpecial::Name(name),

@@ -117,23 +117,26 @@ pub enum Command {
         silent: bool,
     },
     SwitchNamedFocus {
+        /// set current named focus to none if name not provided
         #[arg(short, long)]
-        name: String,
+        name: Option<String>,
 
         /// move focused window and move to workspace
         #[arg(long, short = 'w', default_value_t = false)]
         move_window: bool,
     },
     LockNamedFocus {
+        /// lock current named focus if none
         #[arg(short, long)]
-        name: String,
+        name: Option<String>,
 
         #[arg(short, long)]
         lock: Option<bool>,
     },
     DeleteNamedFocus {
+        /// delete current named focus if none
         #[arg(short, long)]
-        name: String,
+        name: Option<String>,
     },
 }
 
@@ -365,27 +368,54 @@ impl Command {
                 }
             }
             Command::SwitchNamedFocus { name, move_window } => {
+                let Some(name) = name else {
+                    state.current_named_focus = None;
+                    return Ok(());
+                };
+
                 let workspace = Workspace::get_active_async().await?;
-                let f = state.current_named_focus.clone();
-                if let Some(nf) = state.named_focii.get_mut(&f) {
-                    if !nf.locked {
-                        nf.workspace = workspace.name;
+
+                if let Some(current) = state.current_named_focus.clone() {
+                    if let Some(nf) = state.named_focii.get_mut(&current) {
+                        if !nf.locked {
+                            nf.workspace = workspace.name;
+                        }
+                    } else {
+                        state.named_focii.insert(
+                            current,
+                            NamedFocus {
+                                workspace: workspace.name,
+                                locked: false,
+                            },
+                        );
                     }
-                } else {
-                    state.named_focii.insert(
-                        f,
-                        NamedFocus {
-                            workspace: workspace.name,
-                            locked: false,
-                        },
-                    );
                 }
-                state.current_named_focus = name.clone();
+                state.current_named_focus = None;
                 if let Some(nf) = state.named_focii.get(&name).map(|s| s.to_owned()) {
+                    if !nf.locked {
+                        state.current_named_focus = Some(name);
+                    }
                     state.move_to_workspace(nf.workspace, move_window).await?;
                 }
             }
             Command::LockNamedFocus { name, lock } => {
+                let Some(name) = name else {
+                    if let Some(name) = state.current_named_focus.clone() {
+                        if let Some(nf) = state.named_focii.get_mut(&name) {
+                            match lock {
+                                Some(l) => {
+                                    nf.locked = l;
+                                }
+                                None => {
+                                    nf.locked = !nf.locked;
+                                }
+                            }
+                        }
+                    }
+                    return Ok(());
+                };
+
+                let locked;
                 if let Some(nf) = state.named_focii.get_mut(&name) {
                     match lock {
                         Some(l) => {
@@ -395,22 +425,30 @@ impl Command {
                             nf.locked = !nf.locked;
                         }
                     }
+                    locked = nf.locked;
                 } else {
                     let workspace = Workspace::get_active_async().await?;
+                    locked = lock.unwrap_or(true);
                     state.named_focii.insert(
                         name,
                         NamedFocus {
                             workspace: workspace.name,
-                            locked: lock.unwrap_or(false),
+                            locked,
                         },
                     );
                 }
+
+                if locked {
+                    state.current_named_focus = None;
+                }
             }
             Command::DeleteNamedFocus { name } => {
-                let _ = state
-                    .named_focii
-                    .remove(&name)
-                    .context("named focus with this name does not exist")?;
+                if let Some(name) = name.or_else(|| state.current_named_focus.take()) {
+                    let _ = state
+                        .named_focii
+                        .remove(&name)
+                        .context("named focus with this name does not exist")?;
+                }
             }
             _ => {
                 return Err(anyhow!("cannot ececute these commands here"));

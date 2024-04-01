@@ -56,7 +56,7 @@ pub struct Config {
     pub activities: Vec<String>,
     /// number of workspaces in x and y dimensions
     pub workspaces: (u32, u32),
-    pub default_named_focus: String,
+    pub default_named_focus: Option<String>,
     pub named_focii: HashMap<String, NamedFocus>,
     pub daemon: DaemonConfig,
 }
@@ -65,7 +65,7 @@ impl Default for Config {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
-            default_named_focus: "default".into(),
+            default_named_focus: None,
             named_focii: Default::default(),
             daemon: Default::default(),
         }
