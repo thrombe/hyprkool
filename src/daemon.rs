@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use hyprland::{
@@ -7,8 +7,8 @@ use hyprland::{
     shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::UnixListener,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
+    net::{UnixListener, UnixStream},
     sync::Mutex,
 };
 
@@ -135,8 +135,40 @@ impl IpcDaemon {
 
         // - [Unix sockets, the basics in Rust - Emmanuel Bosquet](https://emmanuelbosquet.com/2022/whatsaunixsocket/)
         let sock_path = "/tmp/hyprkool.sock";
+
+        // send a quit message to any daemon that might be running. ignore all errors
+        if let Ok(sock) = UnixStream::connect(sock_path).await {
+            let mut sock = BufWriter::new(sock);
+            let _ = sock
+                .write_all(&Message::Command(Command::DaemonQuit).msg())
+                .await;
+            let _ = sock.write_all("\n".as_bytes()).await;
+            let _ = sock.flush().await;
+            let _ = sock.shutdown().await;
+
+            let sleep = tokio::time::sleep(Duration::from_millis(300));
+            let mut sock = BufReader::new(sock);
+            let mut line = String::new();
+            tokio::select! {
+                res = sock.read_line(&mut line) => {
+                    let _ = res;
+                    if let Ok(command) = serde_json::from_str(&line) {
+                        match command {
+                            Message::IpcOk => { }
+                            Message::IpcErr(message) => {
+                                println!("{}", message);
+                            }
+                            _ => {
+                                unreachable!();
+                            }
+                        }
+                    }
+                }
+                _ = sleep => { }
+            }
+        }
+
         if std::fs::metadata(sock_path).is_ok() {
-            println!("A socket is already present. Deleting...");
             std::fs::remove_file(sock_path)
                 .with_context(|| format!("could not delete previous socket at {:?}", sock_path))?;
         }
