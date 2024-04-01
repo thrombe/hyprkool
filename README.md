@@ -145,7 +145,7 @@ and waybar (using [`exec`](https://github.com/Alexays/Waybar/wiki/Module:-Custom
 this kind of efficient updates.
 
 ### Eww config
-Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/54674a180d2bb1b3b6bce358cbb8d67be07968ec/configma/tools/home/.config/eww/eww.yuck)
+Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/372a47c0a7ed3c3280e110755803ee422c7c4977/configma/tools/home/.config/eww/eww.yuck)
 
 
 ### Waybar config
