@@ -363,10 +363,7 @@ impl InfoCommand {
                         if let Some(fl) = focii.get_mut(v) {
                             fl.push(k.clone());
                         } else {
-                            focii.insert(
-                                v.clone(),
-                                vec![k.clone()],
-                            );
+                            focii.insert(v.clone(), vec![k.clone()]);
                         }
                     });
                     for (i, w) in state.workspaces[activity_index].iter().enumerate() {
@@ -416,10 +413,7 @@ impl InfoCommand {
                         if let Some(fl) = focii.get_mut(v) {
                             fl.push(k.clone());
                         } else {
-                            focii.insert(
-                                v.clone(),
-                                vec![k.clone()],
-                            );
+                            focii.insert(v.clone(), vec![k.clone()]);
                         }
                     });
                     for i in 0..state.activities.len() {

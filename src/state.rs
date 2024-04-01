@@ -84,11 +84,7 @@ impl State {
         Ok(&self.workspaces[activity_index][(iy * nx + ix) as usize])
     }
 
-    pub async fn move_to_workspace(
-        &self,
-        name: impl AsRef<str>,
-        move_window: bool,
-    ) -> Result<()> {
+    pub async fn move_to_workspace(&self, name: impl AsRef<str>, move_window: bool) -> Result<()> {
         let name = name.as_ref();
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
