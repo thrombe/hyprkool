@@ -358,12 +358,12 @@ impl InfoCommand {
                     let mut activity = Vec::new();
                     let nx = state.config.workspaces.0 as usize;
                     let mut wss = Vec::new();
-                    let mut focii = HashMap::<String, Vec<String>>::new();
+                    let mut focii = HashMap::<String, Vec<NamedFocusStatus>>::new();
                     state.named_focii.iter().for_each(|(k, v)| {
-                        if let Some(fl) = focii.get_mut(k) {
-                            fl.push(v.clone());
+                        if let Some(fl) = focii.get_mut(&v.workspace) {
+                            fl.push(NamedFocusStatus { name: k.clone(), locked: v.locked });
                         } else {
-                            focii.insert(k.clone(), vec![v.clone()]);
+                            focii.insert(v.workspace.clone(), vec![NamedFocusStatus { name: k.clone(), locked: v.locked} ]);
                         }
                     });
                     for (i, w) in state.workspaces[activity_index].iter().enumerate() {
@@ -408,12 +408,12 @@ impl InfoCommand {
                 ) -> Result<()> {
                     let state = state.lock().await;
                     let mut activities = Vec::new();
-                    let mut focii = HashMap::<String, Vec<String>>::new();
+                    let mut focii = HashMap::<String, Vec<NamedFocusStatus>>::new();
                     state.named_focii.iter().for_each(|(k, v)| {
-                        if let Some(fl) = focii.get_mut(v) {
-                            fl.push(k.clone());
+                        if let Some(fl) = focii.get_mut(&v.workspace) {
+                            fl.push(NamedFocusStatus { name: k.clone(), locked: v.locked });
                         } else {
-                            focii.insert(v.clone(), vec![k.clone()]);
+                            focii.insert(v.workspace.clone(), vec![NamedFocusStatus { name: k.clone(), locked: v.locked} ]);
                         }
                     });
                     for i in 0..state.activities.len() {
@@ -514,17 +514,23 @@ struct WaybarText {
     text: String,
 }
 
+#[derive(Serialize, Clone, Debug)]
+struct NamedFocusStatus {
+    name: String,
+    locked: bool,
+}
+
 #[derive(Serialize, Debug)]
 struct ActivityStatus {
     name: String,
     focused: bool,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Serialize, Debug)]
 struct WorkspaceStatus {
     name: String,
     focused: bool,
-    named_focus: Vec<String>,
+    named_focus: Vec<NamedFocusStatus>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -10,7 +10,7 @@ use hyprland::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{info::InfoCommand, State};
+use crate::{info::InfoCommand, state::NamedFocus, State};
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -123,6 +123,10 @@ pub enum Command {
         /// move focused window and move to workspace
         #[arg(long, short = 'w', default_value_t = false)]
         move_window: bool,
+    },
+    NamedFocusToggleLock {
+        #[arg(short, long)]
+        name: String,
     },
 }
 
@@ -356,10 +360,36 @@ impl Command {
             Command::SwitchNamedFocus { name, move_window } => {
                 let workspace = Workspace::get_active_async().await?;
                 let f = state.current_named_focus.clone();
-                let _ = state.named_focii.insert(f, workspace.name);
+                if let Some(nf) = state.named_focii.get_mut(&f) {
+                    if !nf.locked {
+                        nf.workspace = workspace.name;
+                    }
+                } else {
+                    state.named_focii.insert(
+                        f,
+                        NamedFocus {
+                            workspace: workspace.name,
+                            locked: false,
+                        },
+                    );
+                }
                 state.current_named_focus = name.clone();
-                if let Some(f) = state.named_focii.get(&name).map(|s| s.to_owned()) {
-                    state.move_to_workspace(f, move_window).await?;
+                if let Some(nf) = state.named_focii.get(&name).map(|s| s.to_owned()) {
+                    state.move_to_workspace(nf.workspace, move_window).await?;
+                }
+            }
+            Command::NamedFocusToggleLock { name } => {
+                if let Some(nf) = state.named_focii.get_mut(&name) {
+                    nf.locked = !nf.locked;
+                } else {
+                    let workspace = Workspace::get_active_async().await?;
+                    state.named_focii.insert(
+                        name,
+                        NamedFocus {
+                            workspace: workspace.name,
+                            locked: true,
+                        },
+                    );
                 }
             }
             _ => {
