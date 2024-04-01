@@ -182,6 +182,25 @@ impl Command {
                     let a = state.activities[i].clone();
                     Some((a, *move_window))
                 }
+                Command::SetNamedFocus { name } => {
+                    let workspace = Workspace::get_active_async().await?;
+                    if state
+                        .named_focii
+                        .get(name)
+                        .map(|w| w == &workspace.name)
+                        .unwrap_or(false)
+                    {
+                        state.named_focii.remove(name);
+                    } else {
+                        let _ = state
+                            .named_focii
+                            .insert(name.clone(), workspace.name.clone());
+                    }
+                    // TODO: this command should trigger appropriate info command listeners without this hack
+                    state.move_to_workspace("hyprkool:T-T", false).await?;
+                    state.move_to_workspace(workspace.name, false).await?;
+                    return Ok(());
+                }
                 _ => None,
             };
 
@@ -364,21 +383,8 @@ impl Command {
                     state.move_to_workspace(nf, move_window).await?;
                 }
             }
-            Command::SetNamedFocus { name } => {
-                let workspace = Workspace::get_active_async().await?;
-                if state
-                    .named_focii
-                    .get(&name)
-                    .map(|w| w == &workspace.name)
-                    .unwrap_or(false)
-                {
-                    state.named_focii.remove(&name);
-                } else {
-                    let _ = state.named_focii.insert(name, workspace.name.clone());
-                }
-                // TODO: this command should trigger appropriate info command listeners without this hack
-                state.move_to_workspace("hyprkool:T-T", false).await?;
-                state.move_to_workspace(workspace.name, false).await?;
+            Command::SetNamedFocus { .. } => {
+                println!("ERROR: please use hyprkool daemon for this feature");
             }
             _ => {
                 return Err(anyhow!("cannot ececute these commands here"));
