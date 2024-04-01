@@ -131,6 +131,10 @@ pub enum Command {
         #[arg(short, long)]
         lock: Option<bool>,
     },
+    DeleteNamedFocus {
+        #[arg(short, long)]
+        name: String,
+    },
 }
 
 impl Command {
@@ -386,10 +390,10 @@ impl Command {
                     match lock {
                         Some(l) => {
                             nf.locked = l;
-                        },
+                        }
                         None => {
                             nf.locked = !nf.locked;
-                        },
+                        }
                     }
                 } else {
                     let workspace = Workspace::get_active_async().await?;
@@ -401,6 +405,12 @@ impl Command {
                         },
                     );
                 }
+            }
+            Command::DeleteNamedFocus { name } => {
+                let _ = state
+                    .named_focii
+                    .remove(&name)
+                    .context("named focus with this name does not exist")?;
             }
             _ => {
                 return Err(anyhow!("cannot ececute these commands here"));
