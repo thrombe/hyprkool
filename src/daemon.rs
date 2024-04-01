@@ -5,7 +5,7 @@ use hyprland::{
     data::{Client, CursorPosition, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     event_listener::EventListener,
-    shared::{HyprData, HyprDataActive, HyprDataActiveOptional, WorkspaceType},
+    shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
@@ -227,7 +227,7 @@ impl IpcDaemon {
         }
     }
 
-    async fn update(state: Arc<Mutex<State>>) -> Result<()> {
+    async fn update(_state: Arc<Mutex<State>>) -> Result<()> {
         let mut el = EventListener::new();
 
         // let s = state.clone();
