@@ -361,9 +361,18 @@ impl InfoCommand {
                     let mut focii = HashMap::<String, Vec<NamedFocusStatus>>::new();
                     state.named_focii.iter().for_each(|(k, v)| {
                         if let Some(fl) = focii.get_mut(&v.workspace) {
-                            fl.push(NamedFocusStatus { name: k.clone(), locked: v.locked });
+                            fl.push(NamedFocusStatus {
+                                name: k.clone(),
+                                locked: v.locked,
+                            });
                         } else {
-                            focii.insert(v.workspace.clone(), vec![NamedFocusStatus { name: k.clone(), locked: v.locked} ]);
+                            focii.insert(
+                                v.workspace.clone(),
+                                vec![NamedFocusStatus {
+                                    name: k.clone(),
+                                    locked: v.locked,
+                                }],
+                            );
                         }
                     });
                     for (i, w) in state.workspaces[activity_index].iter().enumerate() {
@@ -411,9 +420,18 @@ impl InfoCommand {
                     let mut focii = HashMap::<String, Vec<NamedFocusStatus>>::new();
                     state.named_focii.iter().for_each(|(k, v)| {
                         if let Some(fl) = focii.get_mut(&v.workspace) {
-                            fl.push(NamedFocusStatus { name: k.clone(), locked: v.locked });
+                            fl.push(NamedFocusStatus {
+                                name: k.clone(),
+                                locked: v.locked,
+                            });
                         } else {
-                            focii.insert(v.workspace.clone(), vec![NamedFocusStatus { name: k.clone(), locked: v.locked} ]);
+                            focii.insert(
+                                v.workspace.clone(),
+                                vec![NamedFocusStatus {
+                                    name: k.clone(),
+                                    locked: v.locked,
+                                }],
+                            );
                         }
                     });
                     for i in 0..state.activities.len() {
