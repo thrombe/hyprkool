@@ -94,7 +94,7 @@ impl MouseDaemon {
 
             let workspace = Workspace::get_active_async().await?;
 
-            let mut state = self.state.lock().await;
+            let state = self.state.lock().await;
 
             let Some((current_activity_index, Some(current_workspace_index))) =
                 state.get_indices(&workspace.name)

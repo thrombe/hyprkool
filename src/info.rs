@@ -358,20 +358,14 @@ impl InfoCommand {
                     let mut activity = Vec::new();
                     let nx = state.config.workspaces.0 as usize;
                     let mut wss = Vec::new();
-                    let mut focii = HashMap::<String, Vec<NamedFocusStatus>>::new();
+                    let mut focii = HashMap::<String, Vec<String>>::new();
                     state.named_focii.iter().for_each(|(k, v)| {
-                        if let Some(fl) = focii.get_mut(&v.workspace) {
-                            fl.push(NamedFocusStatus {
-                                name: k.clone(),
-                                locked: v.locked,
-                            });
+                        if let Some(fl) = focii.get_mut(v) {
+                            fl.push(k.clone());
                         } else {
                             focii.insert(
-                                v.workspace.clone(),
-                                vec![NamedFocusStatus {
-                                    name: k.clone(),
-                                    locked: v.locked,
-                                }],
+                                v.clone(),
+                                vec![k.clone()],
                             );
                         }
                     });
@@ -417,20 +411,14 @@ impl InfoCommand {
                 ) -> Result<()> {
                     let state = state.lock().await;
                     let mut activities = Vec::new();
-                    let mut focii = HashMap::<String, Vec<NamedFocusStatus>>::new();
+                    let mut focii = HashMap::<String, Vec<String>>::new();
                     state.named_focii.iter().for_each(|(k, v)| {
-                        if let Some(fl) = focii.get_mut(&v.workspace) {
-                            fl.push(NamedFocusStatus {
-                                name: k.clone(),
-                                locked: v.locked,
-                            });
+                        if let Some(fl) = focii.get_mut(v) {
+                            fl.push(k.clone());
                         } else {
                             focii.insert(
-                                v.workspace.clone(),
-                                vec![NamedFocusStatus {
-                                    name: k.clone(),
-                                    locked: v.locked,
-                                }],
+                                v.clone(),
+                                vec![k.clone()],
                             );
                         }
                     });
@@ -532,12 +520,6 @@ struct WaybarText {
     text: String,
 }
 
-#[derive(Serialize, Clone, Debug)]
-struct NamedFocusStatus {
-    name: String,
-    locked: bool,
-}
-
 #[derive(Serialize, Debug)]
 struct ActivityStatus {
     name: String,
@@ -548,7 +530,7 @@ struct ActivityStatus {
 struct WorkspaceStatus {
     name: String,
     focused: bool,
-    named_focus: Vec<NamedFocusStatus>,
+    named_focus: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

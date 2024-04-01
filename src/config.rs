@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use crate::state::NamedFocus;
-
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct DaemonConfig {
@@ -56,8 +54,7 @@ pub struct Config {
     pub activities: Vec<String>,
     /// number of workspaces in x and y dimensions
     pub workspaces: (u32, u32),
-    pub default_named_focus: Option<String>,
-    pub named_focii: HashMap<String, NamedFocus>,
+    pub named_focii: HashMap<String, String>,
     pub daemon: DaemonConfig,
 }
 impl Default for Config {
@@ -65,7 +62,6 @@ impl Default for Config {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
-            default_named_focus: None,
             named_focii: Default::default(),
             daemon: Default::default(),
         }

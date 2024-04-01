@@ -6,21 +6,13 @@ use hyprland::{
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     shared::HyprDataActive,
 };
-use serde::Deserialize;
 
 use crate::config::Config;
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct NamedFocus {
-    pub workspace: String,
-    pub locked: bool,
-}
 
 #[derive(Debug)]
 pub struct State {
     pub focused: HashMap<String, String>,
-    pub current_named_focus: Option<String>,
-    pub named_focii: HashMap<String, NamedFocus>,
+    pub named_focii: HashMap<String, String>,
     pub activities: Vec<String>,
     pub workspaces: Vec<Vec<String>>,
     pub config: Config,
@@ -46,7 +38,6 @@ impl State {
 
         Self {
             focused: HashMap::new(),
-            current_named_focus: config.default_named_focus.clone(),
             named_focii: config.named_focii.clone(),
             activities,
             workspaces: cooked_workspaces,
@@ -94,28 +85,11 @@ impl State {
     }
 
     pub async fn move_to_workspace(
-        &mut self,
+        &self,
         name: impl AsRef<str>,
         move_window: bool,
     ) -> Result<()> {
         let name = name.as_ref();
-
-        if let Some(current) = self.current_named_focus.as_ref() {
-            if let Some(nf) = self.named_focii.get_mut(current) {
-                if !nf.locked {
-                    nf.workspace = name.to_owned();
-                }
-            } else {
-                self.named_focii.insert(
-                    current.clone(),
-                    NamedFocus {
-                        workspace: name.to_owned(),
-                        locked: false,
-                    },
-                );
-            }
-        }
-
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
                 WorkspaceIdentifierWithSpecial::Name(name),
