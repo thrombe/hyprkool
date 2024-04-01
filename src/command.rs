@@ -198,7 +198,7 @@ impl Command {
                 let (activity_index, workspace_index) =
                     state.get_indices(&name).context("activity not found")?;
                 let workspace_index = workspace_index.context("workspace not found")?;
-                let new_workspace = state.workspaces[activity_index][workspace_index].clone();
+                let new_workspace = &state.workspaces[activity_index][workspace_index];
                 state.move_to_workspace(new_workspace, move_window).await?;
             }
             Command::SwitchToWorkspaceInActivity { name, move_window } => {
@@ -290,19 +290,19 @@ impl Command {
                 state.move_to_workspace(&name, move_window).await?;
             }
             Command::MoveRight { cycle, move_window } => {
-                let workspace = state.moved_workspace(1, 0, cycle).await?.to_owned();
+                let workspace = state.moved_workspace(1, 0, cycle).await?;
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::MoveLeft { cycle, move_window } => {
-                let workspace = state.moved_workspace(-1, 0, cycle).await?.to_owned();
+                let workspace = state.moved_workspace(-1, 0, cycle).await?;
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::MoveUp { cycle, move_window } => {
-                let workspace = state.moved_workspace(0, -1, cycle).await?.to_owned();
+                let workspace = state.moved_workspace(0, -1, cycle).await?;
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::MoveDown { cycle, move_window } => {
-                let workspace = state.moved_workspace(0, 1, cycle).await?.to_owned();
+                let workspace = state.moved_workspace(0, 1, cycle).await?;
                 state.move_to_workspace(workspace, move_window).await?;
             }
             Command::ToggleSpecialWorkspace {

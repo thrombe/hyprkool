@@ -114,8 +114,8 @@ impl MouseDaemon {
             x += current_workspace_index % nx;
             x %= nx;
 
-            let new_workspace = state.workspaces[current_activity_index][y * nx + x].to_owned();
-            if new_workspace != workspace.name {
+            let new_workspace = &state.workspaces[current_activity_index][y * nx + x];
+            if new_workspace != &workspace.name {
                 state.move_to_workspace(new_workspace, false).await?;
                 Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
             }
