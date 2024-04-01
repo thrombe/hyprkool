@@ -124,9 +124,12 @@ pub enum Command {
         #[arg(long, short = 'w', default_value_t = false)]
         move_window: bool,
     },
-    NamedFocusToggleLock {
+    LockNamedFocus {
         #[arg(short, long)]
         name: String,
+
+        #[arg(short, long)]
+        lock: Option<bool>,
     },
 }
 
@@ -378,16 +381,23 @@ impl Command {
                     state.move_to_workspace(nf.workspace, move_window).await?;
                 }
             }
-            Command::NamedFocusToggleLock { name } => {
+            Command::LockNamedFocus { name, lock } => {
                 if let Some(nf) = state.named_focii.get_mut(&name) {
-                    nf.locked = !nf.locked;
+                    match lock {
+                        Some(l) => {
+                            nf.locked = l;
+                        },
+                        None => {
+                            nf.locked = !nf.locked;
+                        },
+                    }
                 } else {
                     let workspace = Workspace::get_active_async().await?;
                     state.named_focii.insert(
                         name,
                         NamedFocus {
                             workspace: workspace.name,
-                            locked: true,
+                            locked: lock.unwrap_or(false),
                         },
                     );
                 }
