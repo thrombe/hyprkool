@@ -12,6 +12,7 @@ use crate::config::Config;
 #[derive(Debug)]
 pub struct State {
     pub focused: HashMap<String, String>,
+    pub named_focii: HashMap<String, String>,
     pub activities: Vec<String>,
     pub workspaces: Vec<Vec<String>>,
     pub config: Config,
@@ -37,6 +38,7 @@ impl State {
 
         Self {
             focused: HashMap::new(),
+            named_focii: config.named_focii.clone(),
             activities,
             workspaces: cooked_workspaces,
             config,
