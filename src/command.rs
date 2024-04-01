@@ -376,6 +376,9 @@ impl Command {
                 } else {
                     let _ = state.named_focii.insert(name, workspace.name.clone());
                 }
+                // TODO: this command should trigger appropriate info command listeners without this hack
+                state.move_to_workspace("hyprkool:T-T", false).await?;
+                state.move_to_workspace(workspace.name, false).await?;
             }
             _ => {
                 return Err(anyhow!("cannot ececute these commands here"));
