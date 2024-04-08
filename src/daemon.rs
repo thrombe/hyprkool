@@ -181,7 +181,7 @@ impl IpcDaemon {
             state,
         })
     }
-    async fn listen_loop(&mut self) -> Result<()> {
+    async fn listen_loop(&self) -> Result<()> {
         loop {
             match self.sock.accept().await {
                 Ok((stream, _addr)) => {
@@ -195,12 +195,29 @@ impl IpcDaemon {
                             return Ok(());
                         }
                         Message::Command(Command::Info { command, monitor }) => {
-                            tokio::spawn(command.execute(
-                                InfoOutputStream::Stream(Arc::new(Mutex::new(sock.into_inner()))),
-                                self.state.clone(),
-                                monitor,
-                            ));
-                            // return Ok(());
+                            let state = self.state.clone();
+                            tokio::spawn(async move {
+                                let sock = Arc::new(Mutex::new(sock.into_inner()));
+                                loop {
+                                    let state = state.clone();
+                                    let res = command
+                                        .execute(
+                                            InfoOutputStream::Stream(sock.clone()),
+                                            state,
+                                            monitor,
+                                        )
+                                        .await;
+                                    match res {
+                                        Ok(_) => {
+                                            break;
+                                        }
+                                        Err(e) => {
+                                            // TODO: maybe also try to write this in the socket
+                                            println!("error in info command: {}", e);
+                                        }
+                                    }
+                                }
+                            });
                             continue;
                         }
                         Message::Command(command) => {
@@ -248,7 +265,7 @@ impl IpcDaemon {
         Ok(())
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&self) -> Result<()> {
         let s = self.state.clone();
 
         tokio::select! {

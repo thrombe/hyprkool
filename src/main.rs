@@ -82,19 +82,35 @@ async fn main() -> Result<()> {
             let state = State::new(cli.config()?);
             let state = Arc::new(Mutex::new(state));
             let mut md = MouseDaemon::new(state.clone()).await?;
-            let mut id = IpcDaemon::new(state).await?;
-            let mut md_fut = std::pin::pin!(md.run(move_to_hyprkool_activity));
+            let id = IpcDaemon::new(state.clone()).await?;
             let mut id_fut = std::pin::pin!(id.run());
 
-            tokio::select! {
-                mouse = &mut md_fut => {
-                    return mouse;
-                }
-                ipc = &mut id_fut => {
-                    ipc?;
-                    println!("exiting daemon");
+            loop {
+                tokio::select! {
+                    mouse = md.run(move_to_hyprkool_activity) => {
+                        match mouse {
+                            Ok(_) => {
+                                break;
+                            }
+                            Err(e) => {
+                                println!("{}", e);
+                            }
+                        }
+                    }
+                    ipc = &mut id_fut => {
+                        match ipc {
+                            Ok(_) => {
+                                break;
+                            }
+                            Err(e) => {
+                                println!("{}", e);
+                                id_fut.set(id.run());
+                            }
+                        }
+                    }
                 }
             }
+            println!("exiting daemon");
         }
         Command::Info { command, monitor } => {
             if let Ok(sock) = UnixStream::connect("/tmp/hyprkool.sock").await {

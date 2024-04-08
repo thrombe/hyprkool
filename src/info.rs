@@ -112,7 +112,7 @@ impl InfoOutputStream {
 
 impl InfoCommand {
     pub async fn execute(
-        self,
+        &self,
         stream: InfoOutputStream,
         state: Arc<Mutex<State>>,
         monitor: bool,
@@ -209,8 +209,8 @@ impl InfoCommand {
             } => {
                 let window_states = Arc::new(Mutex::new(WindowStates::new(
                     Clients::get_async().await?.to_vec(),
-                    theme,
-                    try_min_size,
+                    theme.clone(),
+                    *try_min_size,
                 )?));
 
                 async fn print_state(
@@ -266,8 +266,8 @@ impl InfoCommand {
             } => {
                 let window_states = Arc::new(Mutex::new(WindowStates::new(
                     Clients::get_async().await?.to_vec(),
-                    theme,
-                    try_min_size,
+                    theme.clone(),
+                    *try_min_size,
                 )?));
 
                 async fn print_status(
