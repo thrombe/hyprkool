@@ -83,12 +83,14 @@ async fn main() -> Result<()> {
             let state = Arc::new(Mutex::new(state));
             let mut md = MouseDaemon::new(state.clone()).await?;
             let mut id = IpcDaemon::new(state).await?;
+            let mut md_fut = std::pin::pin!(md.run(move_to_hyprkool_activity));
+            let mut id_fut = std::pin::pin!(id.run());
 
             tokio::select! {
-                mouse = md.run(move_to_hyprkool_activity) => {
+                mouse = &mut md_fut => {
                     return mouse;
                 }
-                ipc = id.run() => {
+                ipc = &mut id_fut => {
                     ipc?;
                     println!("exiting daemon");
                 }
