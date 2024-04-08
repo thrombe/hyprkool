@@ -108,7 +108,7 @@ impl InfoCommand {
         state: Arc<Mutex<State>>,
         monitor: bool,
     ) -> Result<()> {
-        let mut ael = EventListener::new();
+        let mut el = EventListener::new();
         let (stream, mut exit) = InfoOutput::new(stream);
 
         match self {
@@ -129,7 +129,7 @@ impl InfoCommand {
                 let workspace = Workspace::get_active_async().await?;
                 print_state(state.clone(), workspace.name, stream.clone()).await?;
 
-                ael.add_workspace_change_handler(move |e| match e {
+                el.add_workspace_change_handler(move |e| match e {
                     WorkspaceType::Regular(name) => {
                         tokio::spawn(print_state(state.clone(), name, stream.clone()));
                     }
@@ -171,7 +171,7 @@ impl InfoCommand {
                 let addr = Client::get_active_async().await?.map(|w| w.address);
                 print_status(stream.clone(), addr, windows.clone()).await?;
 
-                ael.add_active_window_change_handler(move |e| {
+                el.add_active_window_change_handler(move |e| {
                     tokio::spawn(print_status(
                         stream.clone(),
                         e.map(|e| e.window_address),
@@ -185,7 +185,7 @@ impl InfoCommand {
                     return Ok(());
                 }
                 let stream = stream.clone();
-                ael.add_sub_map_change_handler(move |submap| {
+                el.add_sub_map_change_handler(move |submap| {
                     let msg = format!("{{\"submap\":\"{}\"}}", submap);
                     let stream = stream.clone();
                     tokio::spawn(async move {
@@ -247,7 +247,7 @@ impl InfoCommand {
                 });
                 print_state(stream.clone(), w, window_states.clone()).await?;
 
-                ael.add_active_window_change_handler(move |e| {
+                el.add_active_window_change_handler(move |e| {
                     tokio::spawn(print_state(stream.clone(), e, window_states.clone()));
                 });
             }
@@ -289,7 +289,7 @@ impl InfoCommand {
 
                 let ws = window_states.clone();
                 let s = stream.clone();
-                ael.add_window_open_handler(move |_| {
+                el.add_window_open_handler(move |_| {
                     let ws = ws.clone();
                     let s = s.clone();
                     tokio::spawn(async move {
@@ -305,7 +305,7 @@ impl InfoCommand {
                 });
                 let ws = window_states.clone();
                 let s = stream.clone();
-                ael.add_window_moved_handler(move |_| {
+                el.add_window_moved_handler(move |_| {
                     let ws = ws.clone();
                     let s = s.clone();
                     tokio::spawn(async move {
@@ -320,7 +320,7 @@ impl InfoCommand {
                 });
                 let ws = window_states.clone();
                 let s = stream.clone();
-                ael.add_window_close_handler(move |addr| {
+                el.add_window_close_handler(move |addr| {
                     let ws = ws.clone();
                     let s = s.clone();
                     tokio::spawn(async move {
@@ -335,7 +335,7 @@ impl InfoCommand {
                 });
 
                 let ws = window_states.clone();
-                ael.add_workspace_change_handler(move |e| {
+                el.add_workspace_change_handler(move |e| {
                     let name = match e {
                         WorkspaceType::Regular(name) => name,
                         WorkspaceType::Special(name) => name.unwrap_or("special".to_owned()),
@@ -391,7 +391,7 @@ impl InfoCommand {
                 let workspace = Workspace::get_active_async().await?;
                 print_state(stream.clone(), state.clone(), workspace.name).await?;
 
-                ael.add_workspace_change_handler(move |e| match e {
+                el.add_workspace_change_handler(move |e| match e {
                     WorkspaceType::Regular(name) => {
                         tokio::spawn(print_state(stream.clone(), state.clone(), name));
                     }
@@ -447,7 +447,7 @@ impl InfoCommand {
                 let workspace = Workspace::get_active_async().await?;
                 print_state(stream.clone(), state.clone(), workspace.name).await?;
 
-                ael.add_workspace_change_handler(move |e| match e {
+                el.add_workspace_change_handler(move |e| match e {
                     WorkspaceType::Regular(name) => {
                         tokio::spawn(print_state(stream.clone(), state.clone(), name));
                     }
@@ -480,7 +480,7 @@ impl InfoCommand {
                 }
                 print_state(stream.clone(), w.to_owned(), state.clone()).await?;
 
-                ael.add_workspace_change_handler(move |e| {
+                el.add_workspace_change_handler(move |e| {
                     let name = match &e {
                         WorkspaceType::Regular(name) => name.as_str(),
                         WorkspaceType::Special(..) => {
@@ -498,7 +498,7 @@ impl InfoCommand {
 
         if monitor {
             tokio::select! {
-                r = ael.start_listener_async() => {
+                r = el.start_listener_async() => {
                     r?;
                 }
                 _ = exit.recv() => {}
