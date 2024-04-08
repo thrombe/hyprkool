@@ -74,6 +74,15 @@ impl InfoOutput {
 
 #[derive(Clone, Debug)]
 pub enum InfoOutputStream {
+    // TODO: jonhoo recommends not using Arc<Mutex<IO_promitive>>
+    // - [decrusting tokio](https://youtu.be/o2ob8zkeq2s?si=SPFOQtLSiBuiSLZJ&t=6020)
+    // - use actor pattern instead
+    //   - keep a separate task that owns this socket and use channels to communicate
+    // could also try to use tokio::sync::Notify
+    //  - very cool usage
+    //  - run a loop just readig and printing state whenever the notify is woken
+    //    the notify 'waker' can be cloned and sent everywhere like inside hyprland callbacks
+    // also tokio::sync_or_something::watch might be nice here
     Stream(Arc<Mutex<UnixStream>>),
     Stdout,
 }
