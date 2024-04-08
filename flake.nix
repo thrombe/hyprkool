@@ -24,7 +24,12 @@
       packages.default = unstable.rustPlatform.buildRustPackage {
         pname = manifest.name;
         version = manifest.version;
-        cargoLock.lockFile = ./Cargo.lock;
+        cargoLock = {
+          lockFile = ./Cargo.lock;
+          outputHashes = {
+            "hyprland-0.3.13" = "sha256-gjShmFcECdX0/t7mL035l9e9OzZuJqX0Ueozv38l03g=";
+          };
+        };
         src = pkgs.lib.cleanSource ./.;
 
         nativeBuildInputs = with pkgs; [
