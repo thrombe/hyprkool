@@ -8,7 +8,7 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) IPC plugin that tr
 - an optional daemon for stateful commands
 
 # Limitations
-- hyprland IPC plugins can not yet control animation directionality
+- Hyprland IPC plugins can not yet control animation directionality
 
 # Installation
 ## Cargo
