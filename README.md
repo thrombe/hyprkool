@@ -132,6 +132,21 @@ bind = $mainMod SHIFT, 3, exec, hyprkool set-named-focus -n 3
 exec-once = hyprkool daemon -m
 ```
 
+## Troubleshooting
+#### hyprkool move-xxx does not work
+For some of the hyprkool commands to work correctly, you need to switch to a hyprkool activity
+
+#### Hyprkool can't find icons?
+If hyprkool can't find icons, you can specify the name of the icon pack for hyprkool to use. for example
+```zsh
+# assuming the Papirus icons are installed
+hyprkool info -m active-workspace-windows -t Papirus
+```
+
+#### Some command does not work
+If a command does not work when using keybinds, try executing the same command in a terminal. Sometimes the error messages
+will give you a clue into what could be wrong.
+
 ## Info commands
 Hyprkool supports some additional info commands that help you to build widgets using applications like
 [waybar](https://github.com/Alexays/Waybar) and [eww](https://github.com/elkowar/eww).
