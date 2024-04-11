@@ -1,5 +1,5 @@
 # Hyprkool
-An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries to replicate the feel of KDE activities and grid layouts.
+An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) IPC plugin that tries to replicate the feel of KDE activities and grid layouts.
 
 # Features
 - ability to switch desktops when cursor touches screen edges
@@ -8,7 +8,7 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 - an optional daemon for stateful commands
 
 # Limitations
-- hyprland plugins can not yet control animation directionality
+- hyprland IPC plugins can not yet control animation directionality
 
 # Installation
 ## Cargo
@@ -87,7 +87,7 @@ animations {
   ...
 
   # animations work fine, but afaik there is no way to control
-  # which side the workspaces slide from as a hyprland plugin
+  # which side the workspaces slide from as a hyprland IPC plugin
   # so i recommend either turning off animations for workspaces
   # or using animation styles that do not have directionality. (eg fade)
   animation = workspaces, 0
