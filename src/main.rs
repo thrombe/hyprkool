@@ -75,6 +75,8 @@ impl Message {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    let sock_path = daemon::get_socket_path()?;
+
     match cli.command.clone() {
         Command::Daemon {
             move_to_hyprkool_activity,
@@ -113,7 +115,7 @@ async fn main() -> Result<()> {
             println!("exiting daemon");
         }
         Command::Info { command, monitor } => {
-            if let Ok(sock) = UnixStream::connect("/tmp/hyprkool.sock").await {
+            if let Ok(sock) = UnixStream::connect(&sock_path).await {
                 let mut sock = BufWriter::new(sock);
                 sock.write_all(
                     &Message::Command(Command::Info {
@@ -165,7 +167,7 @@ async fn main() -> Result<()> {
                 .await?;
         }
         comm => {
-            if let Ok(sock) = UnixStream::connect("/tmp/hyprkool.sock").await {
+            if let Ok(sock) = UnixStream::connect(&sock_path).await {
                 let mut sock = BufWriter::new(sock);
                 sock.write_all(&Message::Command(comm.clone()).msg())
                     .await?;

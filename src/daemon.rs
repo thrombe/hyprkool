@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use hyprland::{
@@ -134,11 +134,11 @@ impl IpcDaemon {
         let config = s.config.clone();
         drop(s);
 
-        // - [Unix sockets, the basics in Rust - Emmanuel Bosquet](https://emmanuelbosquet.com/2022/whatsaunixsocket/)
-        let sock_path = "/tmp/hyprkool.sock";
+        let sock_path = get_socket_path()?;
 
+        // - [Unix sockets, the basics in Rust - Emmanuel Bosquet](https://emmanuelbosquet.com/2022/whatsaunixsocket/)
         // send a quit message to any daemon that might be running. ignore all errors
-        if let Ok(sock) = UnixStream::connect(sock_path).await {
+        if let Ok(sock) = UnixStream::connect(&sock_path).await {
             let mut sock = BufWriter::new(sock);
             let _ = sock
                 .write_all(&Message::Command(Command::DaemonQuit).msg())
@@ -169,12 +169,12 @@ impl IpcDaemon {
             }
         }
 
-        if std::fs::metadata(sock_path).is_ok() {
-            std::fs::remove_file(sock_path)
-                .with_context(|| format!("could not delete previous socket at {:?}", sock_path))?;
+        if std::fs::metadata(&sock_path).is_ok() {
+            std::fs::remove_file(&sock_path)
+                .with_context(|| format!("could not delete previous socket at {:?}", &sock_path))?;
         }
 
-        let sock = UnixListener::bind(sock_path)?;
+        let sock = UnixListener::bind(&sock_path)?;
         Ok(Self {
             sock,
             _config: config,
@@ -277,4 +277,14 @@ impl IpcDaemon {
             }
         }
     }
+}
+
+pub fn get_socket_path() -> Result<PathBuf> {
+    let hypr_signature = std::env::var("HYPRLAND_INSTANCE_SIGNATURE")
+        .context("could not get HYPRLAND_INSTANCE_SIGNATURE")?;
+    if fs::metadata("/tmp/hyprkool").is_err() {
+        fs::create_dir("/tmp/hyprkool")?;
+    }
+    let sock_path = format!("/tmp/hyprkool/{hypr_signature}.sock");
+    Ok(sock_path.into())
 }
