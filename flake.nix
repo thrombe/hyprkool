@@ -7,21 +7,22 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = inputs @ {
-    self,
-    ...
-  }:
+  outputs = inputs:
     inputs.flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import inputs.nixpkgs {
         inherit system;
-      };
-      unstable = import inputs.nixpkgs-unstable {
-        inherit system;
+        overlays = [
+          (final: prev: {
+            unstable = import inputs.nixpkgs-unstable {
+              inherit system;
+            };
+          })
+        ];
       };
 
       manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
-    in {
-      packages.default = unstable.rustPlatform.buildRustPackage {
+
+      hyprkool-rs = pkgs.unstable.rustPlatform.buildRustPackage {
         pname = manifest.name;
         version = manifest.version;
         cargoLock = {
@@ -37,15 +38,33 @@
         ];
       };
 
-      devShells.default = pkgs.mkShell {
-        nativeBuildInputs = with pkgs;
+      fhs = pkgs.buildFHSEnv {
+        name = "fhs-shell";
+        targetPkgs = p: (env-packages p) ++ custom-commands;
+        runScript = "${pkgs.zsh}/bin/zsh";
+        profile = ''
+          export FHS=1
+          # source ./.venv/bin/activate
+          # source .env
+        '';
+      };
+      custom-commands = [];
+
+      env-packages = pkgs:
+        with pkgs;
           [
             unstable.rust-analyzer
             unstable.rustfmt
             unstable.clippy
             # unstable.rustup
           ]
-          ++ self.packages."${system}".default.nativeBuildInputs;
+          ++ hyprkool-rs.nativeBuildInputs;
+    in {
+      packages.hyprkool-rs = hyprkool-rs;
+      packages.default = hyprkool-rs;
+
+      devShells.default = pkgs.mkShell {
+        nativeBuildInputs = (env-packages pkgs) ++ [fhs];
         shellHook = ''
           export RUST_BACKTRACE="1"
         '';
