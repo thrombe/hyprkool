@@ -5,10 +5,18 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-23.11";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+
+    hyprland = {
+      url = "github:hyprwm/Hyprland";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
   };
 
   outputs = inputs:
     inputs.flake-utils.lib.eachDefaultSystem (system: let
+      flakePackage = flake: package: flake.packages."${system}"."${package}";
+      flakeDefaultPackage = flake: flakePackage flake "default";
+
       pkgs = import inputs.nixpkgs {
         inherit system;
         overlays = [
@@ -57,17 +65,35 @@
             unstable.rustfmt
             unstable.clippy
             # unstable.rustup
+
+            (flakeDefaultPackage inputs.hyprland)
+            unstable.clang
+            # unstable.gcc
+            meson
+            ninja
+            cmake
+
+            # libdrm
+            # pixman
           ]
+          ++ (flakeDefaultPackage inputs.hyprland).buildInputs
           ++ hyprkool-rs.nativeBuildInputs;
     in {
       packages.hyprkool-rs = hyprkool-rs;
       packages.default = hyprkool-rs;
 
-      devShells.default = pkgs.mkShell {
-        nativeBuildInputs = (env-packages pkgs) ++ [fhs];
-        shellHook = ''
-          export RUST_BACKTRACE="1"
-        '';
-      };
+      devShells.default =
+        pkgs.mkShell.override {
+          stdenv = pkgs.clangStdenv;
+          # stdenv = pkgs.gccStdenv;
+        } {
+          nativeBuildInputs = (env-packages pkgs) ++ [fhs];
+          shellHook = ''
+            export RUST_BACKTRACE="1"
+
+            # $(pwd) always resolves to project root :)
+            export CLANGD_FLAGS="--compile-commands-dir=$(pwd)/plugin --query-driver=$(which $CXX)"
+          '';
+        };
     });
 }
