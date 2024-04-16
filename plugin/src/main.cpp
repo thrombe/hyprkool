@@ -35,18 +35,6 @@ std::string get_socket_path() {
     return sock_path;
 }
 
-inline CFunctionHook* g_pWorkAnimHook = nullptr;
-typedef void (*origStartAnim)(CWorkspace*, bool, bool, bool);
-void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
-    SAnimationPropertyConfig* conf = (thisptr->m_fAlpha.getConfig());
-    std::string style = conf->pValues->internalStyle;
-    conf->pValues->internalStyle = "slidevert";
-
-    (*(origStartAnim)g_pWorkAnimHook->m_pOriginal)(thisptr, in, left, instant);
-
-    conf->pValues->internalStyle = style;
-}
-
 void socket_connect(int clientfd) {
     char buffer[1024];
     std::string partial_line;
@@ -141,6 +129,18 @@ void socket_init() {
         partial_line = line;
     }
     close(sockfd);
+}
+
+inline CFunctionHook* g_pWorkAnimHook = nullptr;
+typedef void (*origStartAnim)(CWorkspace*, bool, bool, bool);
+void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
+    SAnimationPropertyConfig* conf = (thisptr->m_fAlpha.getConfig());
+    std::string style = conf->pValues->internalStyle;
+    conf->pValues->internalStyle = "slidevert";
+
+    (*(origStartAnim)g_pWorkAnimHook->m_pOriginal)(thisptr, in, left, instant);
+
+    conf->pValues->internalStyle = style;
 }
 
 void init_hooks() {
