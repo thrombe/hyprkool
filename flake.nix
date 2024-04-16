@@ -75,6 +75,10 @@
               #!/usr/bin/env bash
               ninja -C build
             '')
+            (pkgs.writeShellScriptBin "kool-cmake-build" ''
+              #!/usr/bin/env bash
+              cmake -B ./build .
+            '')
 
             (flakeDefaultPackage inputs.hyprland)
             unstable.clang
