@@ -68,20 +68,29 @@
 
             (pkgs.writeShellScriptBin "kool-meson-configure" ''
               #!/usr/bin/env bash
+              cd $PROJECT_ROOT
+              cd plugin
+
               rm -rf ./build
               meson setup build --reconfigure
             '')
             (pkgs.writeShellScriptBin "kool-ninja-build" ''
               #!/usr/bin/env bash
+              cd $PROJECT_ROOT
+              cd plugin
+
               ninja -C build
             '')
             (pkgs.writeShellScriptBin "kool-cmake-build" ''
               #!/usr/bin/env bash
+              cd $PROJECT_ROOT
+              cd plugin
+
               cd build
               cmake ..
               make
             '')
-            (pkgs.writeShellScriptBin "hyprkool-test" ''
+            (pkgs.writeShellScriptBin "kool-test" ''
               #!/usr/bin/env bash
               ctrl_c_handler() {
                 echo "Ctrl+C pressed, stopping Hyprland..."
@@ -98,11 +107,16 @@
 
               wait $hyprland_pid
             '')
-            (pkgs.writeShellScriptBin "hyprkool-reload" ''
+            (pkgs.writeShellScriptBin "kool-reload" ''
               #!/usr/bin/env bash
               hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
               hyprctl --instance $hyprland_instance_index plugin unload $(realpath ./plugin/build/hyprkool.so)
               hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
+            '')
+            (pkgs.writeShellScriptBin "kool-rebuild-reload" ''
+              #!/usr/bin/env bash
+              kool-cmake-build
+              kool-reload
             '')
 
             (flakePackage inputs.hyprland "hyprland-debug")
@@ -128,6 +142,8 @@
         } {
           nativeBuildInputs = (env-packages pkgs) ++ [fhs];
           shellHook = ''
+            export PROJECT_ROOT="$(pwd)"
+
             export RUST_BACKTRACE="1"
 
             # $(pwd) always resolves to project root :)
