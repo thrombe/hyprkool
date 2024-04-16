@@ -77,7 +77,9 @@
             '')
             (pkgs.writeShellScriptBin "kool-cmake-build" ''
               #!/usr/bin/env bash
-              cmake -B ./build .
+              cd build
+              cmake ..
+              make
             '')
 
             (flakeDefaultPackage inputs.hyprland)
