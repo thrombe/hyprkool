@@ -81,6 +81,29 @@
               cmake ..
               make
             '')
+            (pkgs.writeShellScriptBin "hyprkool-test" ''
+              #!/usr/bin/env bash
+              ctrl_c_handler() {
+                echo "Ctrl+C pressed, stopping Hyprland..."
+                kill "$hyprland_pid"
+                exit 0
+              }
+              trap ctrl_c_handler INT
+
+              Hyprland &
+              hyprland_pid=$!
+
+              hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
+              hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
+
+              wait $hyprland_pid
+            '')
+            (pkgs.writeShellScriptBin "hyprkool-reload" ''
+              #!/usr/bin/env bash
+              hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
+              hyprctl --instance $hyprland_instance_index plugin unload $(realpath ./plugin/build/hyprkool.so)
+              hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
+            '')
 
             (flakePackage inputs.hyprland "hyprland-debug")
             unstable.clang
