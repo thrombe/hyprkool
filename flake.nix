@@ -82,7 +82,7 @@
               make
             '')
 
-            (flakeDefaultPackage inputs.hyprland)
+            (flakePackage inputs.hyprland "hyprland-debug")
             unstable.clang
             # unstable.gcc
             meson
