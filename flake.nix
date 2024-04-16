@@ -93,16 +93,18 @@
           Hyprland &
           hyprland_pid=$!
 
-          hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
-          hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
+          # sleep 5
+
+          # instance="$(hyprctl instances -j | jq -r '. | length - 1')"
+          # hyprctl -i $instance plugin load $(realpath ./plugin/build/hyprkool.so)
 
           wait $hyprland_pid
         '')
         (pkgs.writeShellScriptBin "kool-reload" ''
           #!/usr/bin/env bash
-          hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
-          hyprctl --instance $hyprland_instance_index plugin unload $(realpath ./plugin/build/hyprkool.so)
-          hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
+          instance="$(hyprctl instances -j | jq -r '. | length - 1')"
+          hyprctl -i $instance plugin unload $(realpath ./plugin/build/hyprkool.so)
+          hyprctl -i $instance plugin load $(realpath ./plugin/build/hyprkool.so)
         '')
         (pkgs.writeShellScriptBin "kool-rebuild-reload" ''
           #!/usr/bin/env bash
