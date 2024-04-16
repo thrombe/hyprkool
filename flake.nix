@@ -48,7 +48,7 @@
 
       fhs = pkgs.buildFHSEnv {
         name = "fhs-shell";
-        targetPkgs = p: (env-packages p) ++ custom-commands;
+        targetPkgs = p: (env-packages p) ++ (custom-commands p);
         runScript = "${pkgs.zsh}/bin/zsh";
         profile = ''
           export FHS=1
@@ -56,7 +56,60 @@
           # source .env
         '';
       };
-      custom-commands = [];
+      custom-commands = pkgs: [
+        (pkgs.writeShellScriptBin "kool-meson-configure" ''
+          #!/usr/bin/env bash
+          cd $PROJECT_ROOT
+          cd plugin
+
+          rm -rf ./build
+          meson setup build --reconfigure
+        '')
+        (pkgs.writeShellScriptBin "kool-ninja-build" ''
+          #!/usr/bin/env bash
+          cd $PROJECT_ROOT
+          cd plugin
+
+          ninja -C build
+        '')
+        (pkgs.writeShellScriptBin "kool-cmake-build" ''
+          #!/usr/bin/env bash
+          cd $PROJECT_ROOT
+          cd plugin
+
+          cd build
+          cmake ..
+          make
+        '')
+        (pkgs.writeShellScriptBin "kool-test" ''
+          #!/usr/bin/env bash
+          ctrl_c_handler() {
+            echo "Ctrl+C pressed, stopping Hyprland..."
+            kill "$hyprland_pid"
+            exit 0
+          }
+          trap ctrl_c_handler INT
+
+          Hyprland &
+          hyprland_pid=$!
+
+          hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
+          hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
+
+          wait $hyprland_pid
+        '')
+        (pkgs.writeShellScriptBin "kool-reload" ''
+          #!/usr/bin/env bash
+          hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
+          hyprctl --instance $hyprland_instance_index plugin unload $(realpath ./plugin/build/hyprkool.so)
+          hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
+        '')
+        (pkgs.writeShellScriptBin "kool-rebuild-reload" ''
+          #!/usr/bin/env bash
+          kool-cmake-build
+          kool-reload
+        '')
+      ];
 
       env-packages = pkgs:
         with pkgs;
@@ -65,59 +118,6 @@
             unstable.rustfmt
             unstable.clippy
             # unstable.rustup
-
-            (pkgs.writeShellScriptBin "kool-meson-configure" ''
-              #!/usr/bin/env bash
-              cd $PROJECT_ROOT
-              cd plugin
-
-              rm -rf ./build
-              meson setup build --reconfigure
-            '')
-            (pkgs.writeShellScriptBin "kool-ninja-build" ''
-              #!/usr/bin/env bash
-              cd $PROJECT_ROOT
-              cd plugin
-
-              ninja -C build
-            '')
-            (pkgs.writeShellScriptBin "kool-cmake-build" ''
-              #!/usr/bin/env bash
-              cd $PROJECT_ROOT
-              cd plugin
-
-              cd build
-              cmake ..
-              make
-            '')
-            (pkgs.writeShellScriptBin "kool-test" ''
-              #!/usr/bin/env bash
-              ctrl_c_handler() {
-                echo "Ctrl+C pressed, stopping Hyprland..."
-                kill "$hyprland_pid"
-                exit 0
-              }
-              trap ctrl_c_handler INT
-
-              Hyprland &
-              hyprland_pid=$!
-
-              hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
-              hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
-
-              wait $hyprland_pid
-            '')
-            (pkgs.writeShellScriptBin "kool-reload" ''
-              #!/usr/bin/env bash
-              hyprland_instance_index="$(hyprctl instances -j | jq -r '. | length - 1')"
-              hyprctl --instance $hyprland_instance_index plugin unload $(realpath ./plugin/build/hyprkool.so)
-              hyprctl --instance $hyprland_instance_index plugin load $(realpath ./plugin/build/hyprkool.so)
-            '')
-            (pkgs.writeShellScriptBin "kool-rebuild-reload" ''
-              #!/usr/bin/env bash
-              kool-cmake-build
-              kool-reload
-            '')
 
             (flakePackage inputs.hyprland "hyprland-debug")
             unstable.clang
@@ -129,6 +129,7 @@
             # libdrm
             # pixman
           ]
+          ++ (custom-commands pkgs)
           ++ (flakeDefaultPackage inputs.hyprland).buildInputs
           ++ hyprkool-rs.nativeBuildInputs;
     in {
