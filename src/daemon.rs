@@ -282,9 +282,11 @@ impl IpcDaemon {
 pub fn get_socket_path() -> Result<PathBuf> {
     let hypr_signature = std::env::var("HYPRLAND_INSTANCE_SIGNATURE")
         .context("could not get HYPRLAND_INSTANCE_SIGNATURE")?;
-    if fs::metadata("/tmp/hyprkool").is_err() {
-        fs::create_dir("/tmp/hyprkool")?;
+    let mut sock_path = PathBuf::from("/tmp/hyprkool");
+    sock_path.push(&hypr_signature);
+    if fs::metadata(&sock_path).is_err() {
+        fs::create_dir_all(&sock_path)?;
     }
-    let sock_path = format!("/tmp/hyprkool/{hypr_signature}.sock");
-    Ok(sock_path.into())
+    sock_path.push("kool.sock");
+    Ok(sock_path)
 }
