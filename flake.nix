@@ -66,6 +66,16 @@
             unstable.clippy
             # unstable.rustup
 
+            (pkgs.writeShellScriptBin "kool-meson-configure" ''
+              #!/usr/bin/env bash
+              rm -rf ./build
+              meson setup build --reconfigure
+            '')
+            (pkgs.writeShellScriptBin "kool-ninja-build" ''
+              #!/usr/bin/env bash
+              ninja -C build
+            '')
+
             (flakeDefaultPackage inputs.hyprland)
             unstable.clang
             # unstable.gcc
