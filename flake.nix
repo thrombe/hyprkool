@@ -77,6 +77,8 @@
           cd $PROJECT_ROOT
           cd plugin
 
+          mkdir -p build
+
           cd build
           cmake ..
           make
