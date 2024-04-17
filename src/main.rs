@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::UnixStream,
-    select,
     sync::Mutex,
 };
 
@@ -177,7 +176,7 @@ async fn main() -> Result<()> {
                 let sleep = tokio::time::sleep(Duration::from_millis(300));
                 let mut sock = BufReader::new(sock);
                 let mut line = String::new();
-                select! {
+                tokio::select! {
                     res = sock.read_line(&mut line) => {
                         res?;
                         let command = serde_json::from_str(&line)?;
