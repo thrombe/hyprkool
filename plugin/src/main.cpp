@@ -12,6 +12,7 @@
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprland/src/helpers/Box.hpp>
 #include <hyprland/src/helpers/Color.hpp>
+#include <hyprland/src/helpers/WLClasses.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -28,6 +29,8 @@
 
 typedef void (*FuncRenderWindow)(void*, CWindow*, CMonitor*, timespec*, bool, eRenderPassMode, bool, bool);
 void* renderWindow;
+typedef void (*FuncRenderLayer)(void*, SLayerSurface*, CMonitor*, timespec*, bool);
+void* renderLayer;
 
 enum Animation {
     None = 0,
@@ -195,6 +198,8 @@ class OverviewWorkspace {
     float scale;
 
     void render(CBox screen, timespec* time) {
+        render_bg_layers(screen, time);
+
         for (auto& w : g_pCompositor->m_vWindows) {
             if (!w) {
                 continue;
@@ -206,11 +211,13 @@ class OverviewWorkspace {
             if (ws->m_szName != name) {
                 continue;
             }
-            render_window(screen, w.get(), time);
+            render_window(w.get(), screen, time);
         }
+
+        render_top_layers(screen, time);
     }
 
-    void render_window(CBox sbox, CWindow* w, timespec* time) {
+    void render_window(CWindow* w, CBox screen, timespec* time) {
         auto& m = g_pCompositor->m_vMonitors[0];
 
         auto pos = w->m_vRealPosition.value();
@@ -226,7 +233,7 @@ class OverviewWorkspace {
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
         g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
-        g_pHyprOpenGL->m_RenderData.clipBox = sbox;
+        g_pHyprOpenGL->m_RenderData.clipBox = screen;
 
         g_pHyprRenderer->damageWindow(w);
         (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m.get(), time, true, RENDER_PASS_MAIN, false,
@@ -237,6 +244,45 @@ class OverviewWorkspace {
         g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    }
+
+    void render_layer(SLayerSurface* layer, CBox screen, timespec* time) {
+        auto& m = g_pCompositor->m_vMonitors[0];
+
+        auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
+
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+            {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+            {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
+        g_pHyprOpenGL->m_RenderData.clipBox = screen;
+
+        (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m.get(), time, false);
+
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    }
+
+    void render_bg_layers(CBox screen, timespec* time) {
+        auto& m = g_pCompositor->m_vMonitors[0];
+        for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
+            render_layer(layer.get(), screen, time);
+        }
+        for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
+            render_layer(layer.get(), screen, time);
+        }
+    }
+
+    void render_top_layers(CBox screen, timespec* time) {
+        auto& m = g_pCompositor->m_vMonitors[0];
+        for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
+            render_layer(layer.get(), screen, time);
+        }
+        for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
+            render_layer(layer.get(), screen, time);
+        }
     }
 };
 
@@ -272,6 +318,8 @@ class GridOverview {
         timespec time;
         clock_gettime(CLOCK_MONOTONIC, &time);
 
+        // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
+
         for (auto& ow : workspaces) {
             ow.render(box, &time);
         }
@@ -286,12 +334,13 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
         case eRenderStage::RENDER_PRE: {
         } break;
         case eRenderStage::RENDER_PRE_WINDOWS: {
-            go.render();
-
             // CBox box = CBox(50, 50, 100.0, 100.0);
             // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
         } break;
         case eRenderStage::RENDER_POST_WINDOWS: {
+        } break;
+        case eRenderStage::RENDER_LAST_MOMENT: {
+            go.render();
         } break;
         default: {
         } break;
@@ -307,6 +356,9 @@ void init_hooks() {
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     renderWindow = funcSearch[0].address;
+
+    funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderLayer");
+    renderLayer = funcSearch[0].address;
 }
 
 // Do NOT change this function.
