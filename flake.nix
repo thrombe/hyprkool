@@ -77,6 +77,8 @@
             ninja
           ]
           ++ (flakeDefaultPackage inputs.hyprland).buildInputs;
+
+        inherit meta;
       };
 
       fhs = pkgs.buildFHSEnv {
