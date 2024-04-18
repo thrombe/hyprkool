@@ -12,7 +12,9 @@
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprland/src/helpers/Box.hpp>
 #include <hyprland/src/helpers/Color.hpp>
+#include <hyprland/src/helpers/Monitor.hpp>
 #include <hyprland/src/helpers/WLClasses.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -191,6 +193,15 @@ void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
     conf->pValues->internalStyle = style;
 }
 
+bool show_layers = false;
+inline CFunctionHook* g_pRenderLayer = nullptr;
+typedef void (*origRenderLayer)(void*, SLayerSurface*, CMonitor*, timespec*, bool);
+void hk_render_layer(void* thisptr, SLayerSurface* layer, CMonitor* monitor, timespec* time, bool popups) {
+    if (show_layers) {
+        (*(origRenderLayer)(g_pRenderLayer->m_pOriginal))(thisptr, layer, monitor, time, popups);
+    }
+}
+
 class OverviewWorkspace {
   public:
     std::string name;
@@ -357,7 +368,9 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
         case eRenderStage::RENDER_PRE_WINDOWS: {
             // CBox box = CBox(50, 50, 100.0, 100.0);
             // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
+            show_layers = true;
             go.render();
+            show_layers = false;
             // TODO: damaging entire window fixes the weird areas - but is inefficient
             g_pHyprRenderer->damageBox(&go.box);
         } break;
@@ -373,9 +386,13 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
 }
 
 void init_hooks() {
-    static const auto METHODS = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
-    g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, METHODS[0].address, (void*)&hk_workspace_anim);
+    static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
+    g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
     g_pWorkAnimHook->hook();
+
+    static const auto RENDER_LAYER = HyprlandAPI::findFunctionsByName(PHANDLE, "renderLayer");
+    g_pRenderLayer = HyprlandAPI::createFunctionHook(PHANDLE, RENDER_LAYER[0].address, (void*)&hk_render_layer);
+    g_pRenderLayer->hook();
 
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", on_render);
 
