@@ -356,9 +356,9 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
             // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
         } break;
         case eRenderStage::RENDER_POST_WINDOWS: {
+            go.render();
         } break;
         case eRenderStage::RENDER_LAST_MOMENT: {
-            go.render();
         } break;
         default: {
         } break;
