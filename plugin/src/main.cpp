@@ -200,6 +200,9 @@ class OverviewWorkspace {
                 continue;
             }
             auto& ws = w->m_pWorkspace;
+            if (!ws) {
+                continue;
+            }
             if (ws->m_szName != name) {
                 continue;
             }
