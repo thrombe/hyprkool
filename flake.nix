@@ -28,8 +28,13 @@
         ];
       };
 
+      meta = with pkgs.lib; {
+        homepage = manifest.repository;
+        description = manifest.description;
+        license = licenses.mit;
+        platforms = platforms.linux;
+      };
       manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
-
       hyprkool-rs = pkgs.unstable.rustPlatform.buildRustPackage {
         pname = manifest.name;
         version = manifest.version;
@@ -44,6 +49,34 @@
         nativeBuildInputs = with pkgs; [
           pkg-config
         ];
+
+        inherit meta;
+      };
+      plugin-manifest = (pkgs.lib.importTOML ./hyprpm.toml).repository;
+      hyprkool-plugin = stdenv.mkDerivation rec {
+        pname = plugin-manifest.name;
+        version = manifest.version;
+
+        src = ./plugin;
+
+        installPhase = ''
+          mkdir -p $out/lib
+          cp ./${pname}.so $out/lib/.
+        '';
+
+        nativeBuildInputs = with pkgs; [
+          pkg-config
+          (flakePackage inputs.hyprland "hyprland-debug")
+          unstable.clang
+          # unstable.gcc
+        ];
+        buildInputs = with pkgs;
+          [
+            cmake
+            meson
+            ninja
+          ]
+          ++ (flakeDefaultPackage inputs.hyprland).buildInputs;
       };
 
       fhs = pkgs.buildFHSEnv {
@@ -122,30 +155,26 @@
             unstable.rustfmt
             unstable.clippy
             # unstable.rustup
-
-            (flakePackage inputs.hyprland "hyprland-debug")
-            unstable.clang
-            # unstable.gcc
-            meson
-            ninja
-            cmake
-
-            # libdrm
-            # pixman
           ]
-          ++ (custom-commands pkgs)
-          ++ (flakeDefaultPackage inputs.hyprland).buildInputs
-          ++ hyprkool-rs.nativeBuildInputs;
+          ++ (custom-commands pkgs);
+
+      stdenv = pkgs.clangStdenv;
+      # stdenv = pkgs.gccStdenv;
     in {
-      packages.hyprkool-rs = hyprkool-rs;
-      packages.default = hyprkool-rs;
+      packages = {
+        default = hyprkool-rs;
+        inherit hyprkool-rs hyprkool-plugin;
+      };
 
       devShells.default =
         pkgs.mkShell.override {
-          stdenv = pkgs.clangStdenv;
-          # stdenv = pkgs.gccStdenv;
+          inherit stdenv;
         } {
           nativeBuildInputs = (env-packages pkgs) ++ [fhs];
+          inputsFrom = [
+            hyprkool-rs
+            hyprkool-plugin
+          ];
           shellHook = ''
             export PROJECT_ROOT="$(pwd)"
 
