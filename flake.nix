@@ -128,15 +128,15 @@
           }
           trap ctrl_c_handler INT
 
-          Hyprland &
-          hyprland_pid=$!
+          Hyprland
+          # hyprland_pid=$!
 
           # sleep 5
 
           # instance="$(hyprctl instances -j | jq -r '. | length - 1')"
           # hyprctl -i $instance plugin load $(realpath ./plugin/build/hyprkool.so)
 
-          wait $hyprland_pid
+          # wait $hyprland_pid
         '')
         (pkgs.writeShellScriptBin "kool-reload" ''
           #!/usr/bin/env bash
