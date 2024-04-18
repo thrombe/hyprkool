@@ -13,9 +13,11 @@
 #include <pthread.h>
 #include <stdexcept>
 #include <string>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <thread>
+#include <unistd.h>
 
 enum Animation {
     None = 0,
@@ -99,12 +101,15 @@ void socket_serve() {
         close(sockfd);
         throw std::runtime_error("[hyprkool] Error binding socket");
     }
+    // first call does not block for some reason. without it poll returns POLLHUP. and i don't know
+    // what to do other than this.
+    listen(sockfd, 5);
 
     pollfd fd;
     fd.fd = sockfd;
     fd.events = POLLIN;
     while (!exit_flag) {
-        int ret = poll(&fd, 1, 50);
+        int ret = poll(&fd, 1, 100);
         if (ret < 0) {
             std::cerr << "Error polling on socket" << std::endl;
             throw std::runtime_error("[hyprkool] Error polling on socket");
