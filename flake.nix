@@ -120,6 +120,7 @@
         '')
         (pkgs.writeShellScriptBin "kool-test" ''
           #!/usr/bin/env bash
+          cd $PROJECT_ROOT
           ctrl_c_handler() {
             echo "Ctrl+C pressed, stopping Hyprland..."
             kill "$hyprland_pid"
@@ -139,6 +140,7 @@
         '')
         (pkgs.writeShellScriptBin "kool-reload" ''
           #!/usr/bin/env bash
+          cd $PROJECT_ROOT
           instance="$(hyprctl instances -j | jq -r '. | length - 1')"
           hyprctl -i $instance plugin unload $(realpath ./plugin/build/hyprkool.so)
           hyprctl -i $instance plugin load $(realpath ./plugin/build/hyprkool.so)
