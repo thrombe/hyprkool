@@ -212,6 +212,7 @@ class OverviewWorkspace {
             if (ws->m_szName != name) {
                 continue;
             }
+            // TODO: special and pinned windows apparently go on top of everything in that order
             render_window(w.get(), screen, time);
         }
 
@@ -236,7 +237,9 @@ class OverviewWorkspace {
         g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
         g_pHyprOpenGL->m_RenderData.clipBox = screen;
 
-        g_pHyprRenderer->damageWindow(w);
+        // TODO: damaging window like this doesn't work very well :/
+        //       maybe set the pos and size before damaging
+        // g_pHyprRenderer->damageWindow(w);
         (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m.get(), time, true, RENDER_PASS_MAIN, false,
                                           false);
 
@@ -354,11 +357,15 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
         case eRenderStage::RENDER_PRE_WINDOWS: {
             // CBox box = CBox(50, 50, 100.0, 100.0);
             // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
+            go.render();
+            // TODO: damaging entire window fixes the weird areas - but is inefficient
+            g_pHyprRenderer->damageBox(&go.box);
         } break;
         case eRenderStage::RENDER_POST_WINDOWS: {
-            go.render();
         } break;
         case eRenderStage::RENDER_LAST_MOMENT: {
+        } break;
+        case eRenderStage::RENDER_POST: {
         } break;
         default: {
         } break;
