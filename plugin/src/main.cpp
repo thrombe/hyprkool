@@ -298,9 +298,9 @@ class OverviewWorkspace {
         for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
             render_layer(layer.get(), screen, time);
         }
-        for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
-            render_layer(layer.get(), screen, time);
-        }
+        // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
+        //     render_layer(layer.get(), screen, time);
+        // }
     }
 };
 
