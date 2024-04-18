@@ -198,6 +198,7 @@ class OverviewWorkspace {
     float scale;
 
     void render(CBox screen, timespec* time) {
+        render_hyprland_wallpaper(screen);
         render_bg_layers(screen, time);
 
         for (auto& w : g_pCompositor->m_vWindows) {
@@ -259,6 +260,23 @@ class OverviewWorkspace {
         g_pHyprOpenGL->m_RenderData.clipBox = screen;
 
         (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m.get(), time, false);
+
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    }
+
+    void render_hyprland_wallpaper(CBox screen) {
+        auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
+
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+            {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+            {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
+        g_pHyprOpenGL->m_RenderData.clipBox = screen;
+
+        g_pHyprOpenGL->clearWithTex();
 
         g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
