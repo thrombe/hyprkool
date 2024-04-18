@@ -1,13 +1,20 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <ctime>
 #include <exception>
 #include <filesystem>
+#include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/debug/Log.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
+#include <hyprland/src/helpers/Box.hpp>
+#include <hyprland/src/helpers/Color.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
+#include <hyprland/src/render/OpenGL.hpp>
+#include <hyprland/src/render/Renderer.hpp>
 #include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
@@ -18,6 +25,9 @@
 #include <sys/un.h>
 #include <thread>
 #include <unistd.h>
+
+typedef void (*FuncRenderWindow)(void*, CWindow*, CMonitor*, timespec*, bool, eRenderPassMode, bool, bool);
+void* renderWindow;
 
 enum Animation {
     None = 0,
@@ -178,10 +188,122 @@ void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
     conf->pValues->internalStyle = style;
 }
 
+class OverviewWorkspace {
+  public:
+    std::string name;
+    CBox box;
+    float scale;
+
+    void render(CBox screen, timespec* time) {
+        for (auto& w : g_pCompositor->m_vWindows) {
+            if (!w) {
+                continue;
+            }
+            auto& ws = w->m_pWorkspace;
+            if (ws->m_szName != name) {
+                continue;
+            }
+            render_window(screen, w.get(), time);
+        }
+    }
+
+    void render_window(CBox sbox, CWindow* w, timespec* time) {
+        auto& m = g_pCompositor->m_vMonitors[0];
+
+        auto pos = w->m_vRealPosition.value();
+        auto size = w->m_vRealSize.value();
+        CBox wbox = CBox(pos.x, pos.y, size.x, size.y);
+
+        auto o_ws = w->m_pWorkspace;
+        auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
+
+        w->m_pWorkspace = m->activeWorkspace;
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+            {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+            {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
+        g_pHyprOpenGL->m_RenderData.clipBox = sbox;
+
+        g_pHyprRenderer->damageWindow(w);
+        (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m.get(), time, true, RENDER_PASS_MAIN, false,
+                                          false);
+
+        g_pHyprOpenGL->m_RenderData.clipBox = CBox();
+        w->m_pWorkspace = o_ws;
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+        g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    }
+};
+
+class GridOverview {
+  public:
+    std::string activity = "issac";
+    std::vector<OverviewWorkspace> workspaces;
+    CBox box;
+
+    GridOverview() {
+        auto& m = g_pCompositor->m_vMonitors[0];
+        box.x = m->vecPosition.x;
+        box.y = m->vecPosition.y;
+        box.w = m->vecSize.x;
+        box.h = m->vecSize.y;
+
+        float scale = 1.0 / 3.0;
+
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < 3; x++) {
+                auto ow = OverviewWorkspace();
+                ow.name = activity + ":(" + std::to_string(x + 1) + " " + std::to_string(y + 1) + ")";
+                ow.box = box;
+                ow.box.x += box.w * x;
+                ow.box.y += box.h * y;
+                ow.scale = scale;
+                workspaces.push_back(ow);
+            }
+        }
+    }
+
+    void render() {
+        timespec time;
+        clock_gettime(CLOCK_MONOTONIC, &time);
+
+        for (auto& ow : workspaces) {
+            ow.render(box, &time);
+        }
+    }
+};
+
+void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
+    const auto render_stage = std::any_cast<eRenderStage>(args);
+    auto go = GridOverview();
+
+    switch (render_stage) {
+        case eRenderStage::RENDER_PRE: {
+        } break;
+        case eRenderStage::RENDER_PRE_WINDOWS: {
+            go.render();
+
+            // CBox box = CBox(50, 50, 100.0, 100.0);
+            // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
+        } break;
+        case eRenderStage::RENDER_POST_WINDOWS: {
+        } break;
+        default: {
+        } break;
+    }
+}
+
 void init_hooks() {
     static const auto METHODS = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, METHODS[0].address, (void*)&hk_workspace_anim);
     g_pWorkAnimHook->hook();
+
+    HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", on_render);
+
+    auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
+    renderWindow = funcSearch[0].address;
 }
 
 // Do NOT change this function.
