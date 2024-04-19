@@ -66,8 +66,7 @@ std::thread sock_thread;
 void throw_err_notif(std::string msg) {
     msg = "[hyprkool] " + msg;
     std::cerr << msg << std::endl;
-    HyprlandAPI::addNotification(PHANDLE, msg,
-                                 CColor{1.0, 0.2, 0.2, 1.0}, 5000);
+    HyprlandAPI::addNotification(PHANDLE, msg, CColor{1.0, 0.2, 0.2, 1.0}, 5000);
     throw std::runtime_error(msg);
 }
 
