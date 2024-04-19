@@ -238,15 +238,12 @@ class OverviewWorkspace {
         CBox wbox = CBox(pos.x, pos.y, size.x, size.y);
 
         auto o_ws = w->m_pWorkspace;
-        auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
 
         w->m_pWorkspace = m->activeWorkspace;
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-        g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
-        g_pHyprOpenGL->m_RenderData.clipBox = screen;
 
         // TODO: damaging window like this doesn't work very well :/
         //       maybe set the pos and size before damaging
@@ -254,9 +251,7 @@ class OverviewWorkspace {
         (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m.get(), time, true, RENDER_PASS_MAIN, false,
                                           false);
 
-        g_pHyprOpenGL->m_RenderData.clipBox = CBox();
         w->m_pWorkspace = o_ws;
-        g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     }
@@ -264,35 +259,25 @@ class OverviewWorkspace {
     void render_layer(SLayerSurface* layer, CBox screen, timespec* time) {
         auto& m = g_pCompositor->m_vMonitors[0];
 
-        auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
-
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-        g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
-        g_pHyprOpenGL->m_RenderData.clipBox = screen;
 
         (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m.get(), time, false);
 
-        g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     }
 
     void render_hyprland_wallpaper(CBox screen) {
-        auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
-
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-        g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
-        g_pHyprOpenGL->m_RenderData.clipBox = screen;
 
         g_pHyprOpenGL->clearWithTex();
 
-        g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     }
@@ -350,11 +335,28 @@ class GridOverview {
         timespec time;
         clock_gettime(CLOCK_MONOTONIC, &time);
 
+        // TODO: rounding
+        // TODO: clicks should not go to the hidden layers (top layer)
+        // TODO: draggable overlay windows
+        // use overview:activity_name workspac as trigger for overview
+        // try to make dolphin render bg
+
+        auto br = g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender;
+        auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
+
+        g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
+        g_pHyprOpenGL->m_RenderData.clipBox = box;
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
+
         // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
 
         for (auto& ow : workspaces) {
             ow.render(box, &time);
         }
+
+        g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = br;
+        g_pHyprOpenGL->m_RenderData.clipBox = CBox();
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
     }
 };
 
