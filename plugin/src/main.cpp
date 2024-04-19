@@ -22,6 +22,8 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
+#include <regex>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/select.h>
@@ -60,17 +62,24 @@ bool exit_flag = false;
 int sockfd = -1;
 std::thread sock_thread;
 
+// I DON'T KNOW HOW TO DO CPP ERROR HANDLING
+void throw_err_notif(std::string msg) {
+    msg = "[hyprkool] " + msg;
+    std::cerr << msg << std::endl;
+    HyprlandAPI::addNotification(PHANDLE, msg,
+                                 CColor{1.0, 0.2, 0.2, 1.0}, 5000);
+    throw std::runtime_error(msg);
+}
+
 std::string get_socket_path() {
     const auto ISIG = getenv("HYPRLAND_INSTANCE_SIGNATURE");
     if (!ISIG) {
-        std::cout << "HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)\n";
-        throw std::runtime_error("[hyprkool] could not get HYPRLAND_INSTANCE_SIGNATURE");
+        throw_err_notif("HYPRLAND_INSTANCE_SIGNATURE not set! (is hyprland running?)");
     }
     auto sock_path = "/tmp/hyprkool/" + std::string(ISIG);
     if (!std::filesystem::exists(sock_path)) {
         if (!std::filesystem::create_directories(sock_path)) {
-            std::cout << "could not create directory";
-            throw std::runtime_error("could not create directory");
+            throw_err_notif("could not create directory");
         }
     }
     sock_path += "/plugin.sock";
@@ -123,8 +132,7 @@ void socket_connect(int clientfd) {
 void socket_serve() {
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        std::cerr << "Error creating socket" << std::endl;
-        throw std::runtime_error("[hyprkool] Error creating socket");
+        throw_err_notif("Error creating socket");
     }
 
     if (std::filesystem::exists(sock_path)) {
@@ -136,9 +144,8 @@ void socket_serve() {
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, sock_path.c_str(), sizeof(addr.sun_path) - 1);
     if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        std::cerr << "Error binding socket" << std::endl;
         close(sockfd);
-        throw std::runtime_error("[hyprkool] Error binding socket");
+        throw_err_notif("Error binding socket");
     }
     // first call does not block for some reason. without it poll returns POLLHUP. and i don't know
     // what to do other than this.
@@ -150,25 +157,21 @@ void socket_serve() {
     while (!exit_flag) {
         int ret = poll(&fd, 1, 100);
         if (ret < 0) {
-            std::cerr << "Error polling on socket" << std::endl;
-            throw std::runtime_error("[hyprkool] Error polling on socket");
+            throw_err_notif("Error polling on socket");
         } else if (ret == 0) {
             // timeout
             continue;
         }
 
         if (listen(sockfd, 5) < 0) {
-            std::cerr << "Error listening on socket" << std::endl;
             close(sockfd);
-            throw std::runtime_error("[hyprkool] Error listening on socket");
+            throw_err_notif("Error listening on socket");
         }
 
         int clientfd = accept(sockfd, NULL, NULL);
         if (clientfd < 0) {
-            std::cerr << "Error accepting connection" << std::endl;
-            std::cerr << strerror(errno) << std::endl;
             close(sockfd);
-            throw std::runtime_error("[hyprkool] Error accepting connection");
+            throw_err_notif("Error accepting connection");
         }
 
         socket_connect(clientfd);
@@ -361,7 +364,6 @@ class GridOverview {
         // TODO: rounding
         // TODO: clicks should not go to the hidden layers (top layer)
         // TODO: draggable overlay windows
-        // use overview:activity_name workspac as trigger for overview
         // try to make dolphin render bg
 
         auto br = g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender;
@@ -444,9 +446,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     // ALWAYS add this to your plugins. It will prevent random crashes coming
     // from mismatched header versions.
     if (HASH != GIT_COMMIT_HASH) {
-        HyprlandAPI::addNotification(PHANDLE, "[hyprkool] Mismatched headers! Can't proceed.",
-                                     CColor{1.0, 0.2, 0.2, 1.0}, 5000);
-        throw std::runtime_error("[hyprkool] Version mismatch");
+        throw_err_notif("Mismatched headers! Can't proceed.");
     }
 
     sock_path = get_socket_path();
