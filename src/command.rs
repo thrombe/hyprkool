@@ -10,7 +10,11 @@ use hyprland::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{info::InfoCommand, state::Animation, State};
+use crate::{
+    info::InfoCommand,
+    state::{is_plugin_running, Animation},
+    State,
+};
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -430,13 +434,19 @@ impl Command {
                             .await?;
                     }
                     None => {
-                        state
-                            .move_to_workspace(
-                                format!("{}:overview", &workspace.name),
-                                false,
-                                Animation::Fade,
-                            )
-                            .await?;
+                        if is_plugin_running().await.unwrap_or_default() {
+                            state
+                                .move_to_workspace(
+                                    format!("{}:overview", &workspace.name),
+                                    false,
+                                    Animation::Fade,
+                                )
+                                .await?;
+                        } else {
+                            return Err(anyhow!(
+                                "hyprkool plugin muust be running for this feature to work."
+                            ));
+                        }
                     }
                 }
             }

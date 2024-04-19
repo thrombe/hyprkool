@@ -185,12 +185,16 @@ pub enum Animation {
     Fade = 5,
 }
 
+pub async fn is_plugin_running() -> Result<bool> {
+    _send_plugin_event(Animation::None as _).await
+}
+
 pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
     _send_plugin_event(anim as _).await?;
     Ok(())
 }
 
-async fn _send_plugin_event(e: usize) -> Result<()> {
+async fn _send_plugin_event(e: usize) -> Result<bool> {
     let sock_path = get_plugin_socket_path()?;
 
     if let Ok(sock) = UnixStream::connect(&sock_path).await {
@@ -224,7 +228,8 @@ async fn _send_plugin_event(e: usize) -> Result<()> {
         //         println!("timeout. could not connect to hyprkool");
         //     }
         // }
+        Ok(true)
+    } else {
+        Ok(false)
     }
-
-    Ok(())
 }
