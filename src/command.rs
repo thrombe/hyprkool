@@ -10,7 +10,7 @@ use hyprland::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{info::InfoCommand, state::Animation, State};
+use crate::{info::InfoCommand, state::{send_plugin_event, Animation, PluginEvent}, State};
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -130,6 +130,7 @@ pub enum Command {
         #[arg(short, long)]
         name: String,
     },
+    ToggleOverview,
 }
 
 impl Command {
@@ -385,6 +386,14 @@ impl Command {
             }
             Command::SetNamedFocus { .. } => {
                 println!("ERROR: please use hyprkool daemon for this feature");
+            }
+            Command::ToggleOverview => {
+                 match send_plugin_event(PluginEvent::ToggleOverview).await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("ERROR: {e}\n hyprkool plugin is unreachable. make sure it is enabled for using overviews.");
+                    }
+                }
             }
             _ => {
                 return Err(anyhow!("cannot ececute these commands here"));

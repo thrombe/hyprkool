@@ -1,4 +1,5 @@
 
+#include <any>
 #include <cerrno>
 #include <cstdio>
 #include <ctime>
@@ -42,6 +43,15 @@ enum Animation {
     Down = 4,
     Fade = 5,
 };
+enum PluginEvent {
+    AnimationNone = 0,
+    AnimationLeft = 1,
+    AnimationRight = 2,
+    AnimationUp = 3,
+    AnimationDown = 4,
+    AnimationFade = 5,
+    ToggleOverview = 6,
+};
 Animation anim_dir = Animation::None;
 
 inline HANDLE PHANDLE = nullptr;
@@ -67,6 +77,20 @@ std::string get_socket_path() {
     return sock_path;
 }
 
+bool overview_enabled = false;
+void handle_plugin_event(PluginEvent e) {
+    switch (e) {
+        case PluginEvent::ToggleOverview: {
+            overview_enabled = !overview_enabled;
+            auto& m = g_pCompositor->m_vMonitors[0];
+            g_pCompositor->scheduleFrameForMonitor(m.get());
+        } break;
+        default: {
+            anim_dir = static_cast<Animation>(e);
+        } break;
+    }
+}
+
 void socket_connect(int clientfd) {
     char buffer[1024];
     std::string partial_line;
@@ -84,8 +108,8 @@ void socket_connect(int clientfd) {
         std::string line;
         while (std::getline(iss, line)) {
             try {
-                Animation d = static_cast<Animation>(std::stoi(line));
-                anim_dir = d;
+                auto e = static_cast<PluginEvent>(std::stoi(line));
+                handle_plugin_event(e);
             } catch (const std::exception& e) {
                 std::cerr << "Error parsing socket data: " << e.what() << std::endl;
                 continue;
@@ -193,11 +217,10 @@ void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
     conf->pValues->internalStyle = style;
 }
 
-bool show_layers = false;
 inline CFunctionHook* g_pRenderLayer = nullptr;
 typedef void (*origRenderLayer)(void*, SLayerSurface*, CMonitor*, timespec*, bool);
 void hk_render_layer(void* thisptr, SLayerSurface* layer, CMonitor* monitor, timespec* time, bool popups) {
-    if (show_layers) {
+    if (!overview_enabled) {
         (*(origRenderLayer)(g_pRenderLayer->m_pOriginal))(thisptr, layer, monitor, time, popups);
     }
 }
@@ -361,6 +384,9 @@ class GridOverview {
 };
 
 void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
+    if (!overview_enabled) {
+        return;
+    }
     const auto render_stage = std::any_cast<eRenderStage>(args);
     auto go = GridOverview();
 
@@ -368,15 +394,15 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
         case eRenderStage::RENDER_PRE: {
         } break;
         case eRenderStage::RENDER_PRE_WINDOWS: {
-            // CBox box = CBox(50, 50, 100.0, 100.0);
-            // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
-            show_layers = true;
-            go.render();
-            show_layers = false;
-            // TODO: damaging entire window fixes the weird areas - but is inefficient
-            g_pHyprRenderer->damageBox(&go.box);
         } break;
         case eRenderStage::RENDER_POST_WINDOWS: {
+            // CBox box = CBox(50, 50, 100.0, 100.0);
+            // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
+            overview_enabled = false;
+            go.render();
+            overview_enabled = true;
+            // TODO: damaging entire window fixes the weird areas - but is inefficient
+            g_pHyprRenderer->damageBox(&go.box);
         } break;
         case eRenderStage::RENDER_LAST_MOMENT: {
         } break;

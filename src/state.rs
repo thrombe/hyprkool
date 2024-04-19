@@ -185,12 +185,33 @@ pub enum Animation {
     Fade = 5,
 }
 
-pub async fn set_workspace_anim(dir: Animation) -> Result<()> {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum PluginEvent {
+    AnimationNone = 0,
+    AnimationLeft = 1,
+    AnimationRight = 2,
+    AnimationUp = 3,
+    AnimationDown = 4,
+    AnimationFade = 5,
+    ToggleOverview = 6,
+}
+
+pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
+    _send_plugin_event(anim as _).await?;
+    Ok(())
+}
+
+pub async fn send_plugin_event(e: PluginEvent) -> Result<()> {
+    _send_plugin_event(e as _).await?;
+    Ok(())
+}
+
+async fn _send_plugin_event(e: usize) -> Result<()> {
     let sock_path = get_plugin_socket_path()?;
 
     if let Ok(sock) = UnixStream::connect(&sock_path).await {
         let mut sock = BufWriter::new(sock);
-        sock.write_all(format!("{}", dir as u8).as_bytes()).await?;
+        sock.write_all(format!("{}", e).as_bytes()).await?;
         sock.flush().await?;
         sock.shutdown().await?;
 
