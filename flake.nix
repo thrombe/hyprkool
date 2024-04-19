@@ -66,7 +66,7 @@
 
         nativeBuildInputs = with pkgs; [
           pkg-config
-          (flakePackage inputs.hyprland "hyprland-debug")
+          (flakeDefaultPackage inputs.hyprland).dev
           unstable.clang
           # unstable.gcc
         ];
@@ -159,6 +159,7 @@
             unstable.rustfmt
             unstable.clippy
             # unstable.rustup
+            (flakePackage inputs.hyprland "hyprland-debug")
           ]
           ++ (custom-commands pkgs);
 
