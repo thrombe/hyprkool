@@ -185,6 +185,7 @@ pub enum Animation {
     Fade = 5,
 }
 
+// TODO: do all this plugin ipc properly
 pub async fn is_plugin_running() -> Result<bool> {
     _send_plugin_event(Animation::None as _).await
 }
