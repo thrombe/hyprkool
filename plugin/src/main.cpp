@@ -413,8 +413,6 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
         case eRenderStage::RENDER_PRE: {
         } break;
         case eRenderStage::RENDER_PRE_WINDOWS: {
-        } break;
-        case eRenderStage::RENDER_POST_WINDOWS: {
             // CBox box = CBox(50, 50, 100.0, 100.0);
             // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
             overview_enabled = false;
@@ -422,6 +420,8 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
             overview_enabled = true;
             // TODO: damaging entire window fixes the weird areas - but is inefficient
             g_pHyprRenderer->damageBox(&go.box);
+        } break;
+        case eRenderStage::RENDER_POST_WINDOWS: {
         } break;
         case eRenderStage::RENDER_LAST_MOMENT: {
         } break;
