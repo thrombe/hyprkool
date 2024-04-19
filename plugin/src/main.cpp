@@ -330,6 +330,7 @@ class OverviewWorkspace {
     }
 };
 
+std::regex overview_pattern("([a-zA-Z0-9]+):\\(([0-9]+) ([0-9]+)\\):overview");
 class GridOverview {
   public:
     std::string activity;
@@ -339,9 +340,8 @@ class GridOverview {
     void init() {
         auto& m = g_pCompositor->m_vMonitors[0];
         auto& w = m->activeWorkspace;
-        std::regex pattern("([a-zA-Z0-9]+):\\(([0-9]+) ([0-9]+)\\):overview");
 
-        if (std::regex_match(w->m_szName, pattern)) {
+        if (std::regex_match(w->m_szName, overview_pattern)) {
             auto ss = std::istringstream(w->m_szName);
             std::getline(ss, activity, ':');
         } else {
@@ -442,6 +442,26 @@ void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
+void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
+    auto* const w = std::any_cast<CWindow*>(args);
+    if (!w) {
+        return;
+    }
+    if (overview_enabled) {
+        auto& m = g_pCompositor->m_vMonitors[0];
+        auto& w = m->activeWorkspace;
+        if (std::regex_match(w->m_szName, overview_pattern)) {
+            auto ss = std::istringstream(w->m_szName);
+            std::string activity;
+            std::string pos;
+            std::getline(ss, activity, ':');
+            std::getline(ss, pos, ':');
+            HyprlandAPI::invokeHyprctlCommand("dispatch", "movetoworkspace name:" + activity + ":" + pos);
+        }
+        overview_enabled = false;
+    }
+}
+
 void init_hooks() {
     static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
@@ -453,6 +473,7 @@ void init_hooks() {
 
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", on_render);
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", on_workspace);
+    HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", on_window);
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     renderWindow = funcSearch[0].address;
