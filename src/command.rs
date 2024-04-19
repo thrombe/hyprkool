@@ -10,11 +10,7 @@ use hyprland::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{
-    info::InfoCommand,
-    state::{send_plugin_event, Animation, PluginEvent},
-    State,
-};
+use crate::{info::InfoCommand, state::Animation, State};
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -425,12 +421,25 @@ impl Command {
             Command::SetNamedFocus { .. } => {
                 println!("ERROR: please use hyprkool daemon for this feature");
             }
-            Command::ToggleOverview => match send_plugin_event(PluginEvent::ToggleOverview).await {
-                Ok(_) => (),
-                Err(e) => {
-                    println!("ERROR: {e}\n hyprkool plugin is unreachable. make sure it is enabled for using overviews.");
+            Command::ToggleOverview => {
+                let workspace = Workspace::get_active_async().await?;
+                match workspace.name.strip_suffix(":overview") {
+                    Some(name) => {
+                        state
+                            .move_to_workspace(name, false, Animation::Fade)
+                            .await?;
+                    }
+                    None => {
+                        state
+                            .move_to_workspace(
+                                format!("{}:overview", &workspace.name),
+                                false,
+                                Animation::Fade,
+                            )
+                            .await?;
+                    }
                 }
-            },
+            }
             _ => {
                 return Err(anyhow!("cannot ececute these commands here"));
             }

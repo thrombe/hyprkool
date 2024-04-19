@@ -52,7 +52,6 @@ enum PluginEvent {
     AnimationUp = 3,
     AnimationDown = 4,
     AnimationFade = 5,
-    ToggleOverview = 6,
 };
 Animation anim_dir = Animation::None;
 
@@ -88,11 +87,6 @@ std::string get_socket_path() {
 bool overview_enabled = false;
 void handle_plugin_event(PluginEvent e) {
     switch (e) {
-        case PluginEvent::ToggleOverview: {
-            overview_enabled = !overview_enabled;
-            auto& m = g_pCompositor->m_vMonitors[0];
-            g_pCompositor->scheduleFrameForMonitor(m.get());
-        } break;
         default: {
             anim_dir = static_cast<Animation>(e);
         } break;
@@ -345,10 +339,11 @@ class GridOverview {
     void init() {
         auto& m = g_pCompositor->m_vMonitors[0];
         auto& w = m->activeWorkspace;
-        std::regex pattern("([a-zA-Z0-9]+):\\(([0-9]+) ([0-9]+)\\)");
+        std::regex pattern("([a-zA-Z0-9]+):\\(([0-9]+) ([0-9]+)\\):overview");
 
         if (std::regex_match(w->m_szName, pattern)) {
-            std::getline(std::istringstream(w->m_szName), activity, ':');
+            auto ss = std::istringstream(w->m_szName);
+            std::getline(ss, activity, ':');
         } else {
             throw_err_notif("can't display overview when not in a hyprkool activity");
         }
@@ -437,6 +432,16 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
+void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
+    auto const ws = std::any_cast<std::shared_ptr<CWorkspace>>(args);
+    std::cout << ws->m_szName << std::endl;
+    if (ws->m_szName.ends_with(":overview")) {
+        overview_enabled = true;
+    } else {
+        overview_enabled = false;
+    }
+}
+
 void init_hooks() {
     static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
@@ -447,6 +452,7 @@ void init_hooks() {
     g_pRenderLayer->hook();
 
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", on_render);
+    HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", on_workspace);
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     renderWindow = funcSearch[0].address;

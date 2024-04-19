@@ -185,24 +185,8 @@ pub enum Animation {
     Fade = 5,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum PluginEvent {
-    AnimationNone = 0,
-    AnimationLeft = 1,
-    AnimationRight = 2,
-    AnimationUp = 3,
-    AnimationDown = 4,
-    AnimationFade = 5,
-    ToggleOverview = 6,
-}
-
 pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
     _send_plugin_event(anim as _).await?;
-    Ok(())
-}
-
-pub async fn send_plugin_event(e: PluginEvent) -> Result<()> {
-    _send_plugin_event(e as _).await?;
     Ok(())
 }
 
