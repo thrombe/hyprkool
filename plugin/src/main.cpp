@@ -331,12 +331,20 @@ class OverviewWorkspace {
 
 class GridOverview {
   public:
-    std::string activity = "issac";
+    std::string activity;
     std::vector<OverviewWorkspace> workspaces;
     CBox box;
 
     GridOverview() {
         auto& m = g_pCompositor->m_vMonitors[0];
+        auto& w = m->activeWorkspace;
+        std::regex pattern("([a-zA-Z0-9]+):\\(([0-9]+) ([0-9]+)\\)");
+
+        if (std::regex_match(w->m_szName, pattern)) {
+            std::getline(std::istringstream(w->m_szName), activity, ':');
+        } else {
+            throw_err_notif("can't display overview when not in a hyprkool activity");
+        }
         box.x = m->vecPosition.x;
         box.y = m->vecPosition.y;
         box.w = m->vecSize.x;
@@ -390,7 +398,14 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
         return;
     }
     const auto render_stage = std::any_cast<eRenderStage>(args);
-    auto go = GridOverview();
+    GridOverview go;
+    try {
+        go = GridOverview();
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        overview_enabled = false;
+        return;
+    }
 
     switch (render_stage) {
         case eRenderStage::RENDER_PRE: {
