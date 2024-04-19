@@ -342,7 +342,7 @@ class GridOverview {
     std::vector<OverviewWorkspace> workspaces;
     CBox box;
 
-    GridOverview() {
+    void init() {
         auto& m = g_pCompositor->m_vMonitors[0];
         auto& w = m->activeWorkspace;
         std::regex pattern("([a-zA-Z0-9]+):\\(([0-9]+) ([0-9]+)\\)");
@@ -407,7 +407,7 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
     const auto render_stage = std::any_cast<eRenderStage>(args);
     GridOverview go;
     try {
-        go = GridOverview();
+        go.init();
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         overview_enabled = false;
