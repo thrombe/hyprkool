@@ -62,10 +62,13 @@ int sockfd = -1;
 std::thread sock_thread;
 
 // I DON'T KNOW HOW TO DO CPP ERROR HANDLING
-void throw_err_notif(std::string msg) {
+void err_notif(std::string msg) {
     msg = "[hyprkool] " + msg;
     std::cerr << msg << std::endl;
     HyprlandAPI::addNotification(PHANDLE, msg, CColor{1.0, 0.2, 0.2, 1.0}, 5000);
+}
+void throw_err_notif(std::string msg) {
+    err_notif(msg);
     throw std::runtime_error(msg);
 }
 
@@ -177,7 +180,8 @@ void socket_serve() {
 void safe_socket_serve() {
     try {
         socket_serve();
-    } catch (const std::exception& _e) {
+    } catch (const std::exception& e) {
+        err_notif(e.what());
         // well. i hope something nice happens.
     }
 }
@@ -404,7 +408,7 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
     try {
         go.init();
     } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
+        err_notif(e.what());
         overview_enabled = false;
         return;
     }
@@ -432,9 +436,17 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
+void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
+    // it should not throw, but better to not crash hyprland.
+    try {
+        on_render(thisptr, info, args);
+    } catch (const std::exception& e) {
+        err_notif(std::string("ERROR while rendering overview: ") + e.what());
+    }
+}
+
 void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto const ws = std::any_cast<std::shared_ptr<CWorkspace>>(args);
-    std::cout << ws->m_szName << std::endl;
     if (ws->m_szName.ends_with(":overview")) {
         overview_enabled = true;
     } else {
@@ -471,7 +483,7 @@ void init_hooks() {
     g_pRenderLayer = HyprlandAPI::createFunctionHook(PHANDLE, RENDER_LAYER[0].address, (void*)&hk_render_layer);
     g_pRenderLayer->hook();
 
-    HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", on_render);
+    HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", on_workspace);
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", on_window);
 
