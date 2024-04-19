@@ -187,6 +187,7 @@ async fn main() -> Result<()> {
                             }
                             Message::IpcErr(message) => {
                                 println!("{}", message);
+                                return Ok(());
                             }
                             _ => {
                                 unreachable!();
