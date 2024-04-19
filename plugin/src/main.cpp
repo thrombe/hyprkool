@@ -181,6 +181,14 @@ void socket_serve() {
     auto _ = std::filesystem::remove(sock_path);
 }
 
+void safe_socket_serve() {
+    try {
+        socket_serve();
+    } catch (const std::exception& _e) {
+        // well. i hope something nice happens.
+    }
+}
+
 inline CFunctionHook* g_pWorkAnimHook = nullptr;
 typedef void (*origStartAnim)(CWorkspace*, bool, bool, bool);
 void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
@@ -461,13 +469,15 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     // ALWAYS add this to your plugins. It will prevent random crashes coming
     // from mismatched header versions.
     if (HASH != GIT_COMMIT_HASH) {
+        // throwing is allowed in init function
         throw_err_notif("Mismatched headers! Can't proceed.");
     }
 
     sock_path = get_socket_path();
 
     init_hooks();
-    sock_thread = std::thread(socket_serve);
+    // NOTE: throwing not allowed in another thread
+    sock_thread = std::thread(safe_socket_serve);
 
     return {"hyprkool", "hyprkool yea", "thrombe", "0.0.1"};
 }
