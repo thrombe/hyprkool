@@ -97,6 +97,10 @@ impl MouseDaemon {
                 continue;
             }
 
+            if x > 0 && y > 0 {
+                anim = Animation::Fade;
+            }
+
             let workspace = Workspace::get_active_async().await?;
 
             let state = self.state.lock().await;
