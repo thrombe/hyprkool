@@ -77,11 +77,11 @@ impl MouseDaemon {
             if c.x <= w {
                 x += nx - 1;
                 c.x = self.monitor.width as i64 - m;
-                anim = Animation::Right;
+                anim = Animation::Left;
             } else if c.x >= self.monitor.width as i64 - 1 - w {
                 x += 1;
                 c.x = m;
-                anim = Animation::Left;
+                anim = Animation::Right;
             }
             if c.y <= w {
                 y += ny - 1;
