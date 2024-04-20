@@ -31,6 +31,7 @@
 #include <sys/un.h>
 #include <thread>
 #include <unistd.h>
+#include <toml++/toml.hpp>
 
 typedef void (*FuncRenderWindow)(void*, CWindow*, CMonitor*, timespec*, bool, eRenderPassMode, bool, bool);
 void* renderWindow;
@@ -70,6 +71,38 @@ void err_notif(std::string msg) {
 void throw_err_notif(std::string msg) {
     err_notif(msg);
     throw std::runtime_error(msg);
+}
+
+struct KoolConfig {
+    int workspaces_x;
+    int workspaces_y;
+};
+KoolConfig g_KoolConfig;
+
+void _set_config() {
+    const auto HOME = getenv("HOME");
+    auto path = std::string(HOME) + "/.config/hypr/hyprkool.toml";
+    auto manifest = toml::parse_file(path);
+    auto workspaces = manifest["workspaces"].as_array();
+    if (!workspaces) {
+        g_KoolConfig.workspaces_x = 2;
+        g_KoolConfig.workspaces_y = 2;
+        return;
+    }
+    auto ws = *workspaces;
+    if (!ws.at(0).is_integer() || !ws.at(1).is_integer()) {
+        throw_err_notif("workspaces should be (int int) in hyprkool.toml");
+    }
+    g_KoolConfig.workspaces_x = ws.at(0).as_integer()->value_or(2);
+    g_KoolConfig.workspaces_y = ws.at(1).as_integer()->value_or(2);
+}
+
+void set_config() {
+    try {
+        _set_config();
+    } catch (const std::exception& e) {
+        throw_err_notif(e.what());
+    }
 }
 
 std::string get_socket_path() {
@@ -356,10 +389,10 @@ class GridOverview {
         box.w = m->vecSize.x;
         box.h = m->vecSize.y;
 
-        float scale = 1.0 / 3.0;
+        float scale = 1.0 / (float)std::max(g_KoolConfig.workspaces_x, g_KoolConfig.workspaces_y);
 
-        for (int y = 0; y < 3; y++) {
-            for (int x = 0; x < 3; x++) {
+        for (int y = 0; y < g_KoolConfig.workspaces_y; y++) {
+            for (int x = 0; x < g_KoolConfig.workspaces_x; x++) {
                 auto ow = OverviewWorkspace();
                 ow.name = activity + ":(" + std::to_string(x + 1) + " " + std::to_string(y + 1) + ")";
                 ow.box = box;
@@ -514,6 +547,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     sock_path = get_socket_path();
 
     init_hooks();
+    set_config();
     // NOTE: throwing not allowed in another thread
     sock_thread = std::thread(safe_socket_serve);
 
