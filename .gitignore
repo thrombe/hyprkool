@@ -1,4 +1,8 @@
 
 /target
 .direnv
+/plugin/.cache
+/plugin/build
+/eww
+/result
 

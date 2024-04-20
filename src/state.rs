@@ -6,8 +6,13 @@ use hyprland::{
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     shared::HyprDataActive,
 };
+use serde::{Deserialize, Serialize};
+use tokio::{
+    io::{AsyncWriteExt, BufWriter},
+    net::UnixStream,
+};
 
-use crate::config::Config;
+use crate::{config::Config, daemon::get_plugin_socket_path};
 
 #[derive(Debug)]
 pub struct State {
@@ -84,7 +89,13 @@ impl State {
         Ok(&self.workspaces[activity_index][(iy * nx + ix) as usize])
     }
 
-    pub async fn move_to_workspace(&self, name: impl AsRef<str>, move_window: bool) -> Result<()> {
+    pub async fn move_to_workspace(
+        &self,
+        name: impl AsRef<str>,
+        move_window: bool,
+        anim: Animation,
+    ) -> Result<()> {
+        let res = set_workspace_anim(anim).await;
         let name = name.as_ref();
         if move_window {
             Dispatch::call_async(DispatchType::MoveToWorkspace(
@@ -98,7 +109,7 @@ impl State {
             ))
             .await?;
         }
-        Ok(())
+        res
     }
 
     pub async fn move_window_to_workspace(&self, name: impl AsRef<str>) -> Result<()> {
@@ -121,9 +132,10 @@ impl State {
         Ok(())
     }
 
-    pub async fn toggle_special_workspace(&self, name: String) -> Result<()> {
+    pub async fn toggle_special_workspace(&self, name: String, anim: Animation) -> Result<()> {
+        let res = set_workspace_anim(anim).await;
         Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
-        Ok(())
+        res
     }
 
     pub fn get_activity_status_repr(&self, workspace_name: &str) -> Option<String> {
@@ -160,5 +172,65 @@ impl State {
         if let Some(a) = a {
             self.focused.insert(a, w.name.clone());
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum Animation {
+    None = 0,
+    Left = 1,
+    Right = 2,
+    Up = 3,
+    Down = 4,
+    Fade = 5,
+}
+
+// TODO: do all this plugin ipc properly
+pub async fn is_plugin_running() -> Result<bool> {
+    _send_plugin_event(Animation::None as _).await
+}
+
+pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
+    _send_plugin_event(anim as _).await?;
+    Ok(())
+}
+
+async fn _send_plugin_event(e: usize) -> Result<bool> {
+    let sock_path = get_plugin_socket_path()?;
+
+    if let Ok(sock) = UnixStream::connect(&sock_path).await {
+        let mut sock = BufWriter::new(sock);
+        sock.write_all(format!("{}", e).as_bytes()).await?;
+        sock.flush().await?;
+        sock.shutdown().await?;
+
+        // TODO:
+        // let sleep = tokio::time::sleep(Duration::from_millis(300));
+        // let mut sock = BufReader::new(sock);
+        // let mut line = String::new();
+        // tokio::select! {
+        //     res = sock.read_line(&mut line) => {
+        //         res?;
+        //         let command = serde_json::from_str(&line)?;
+        //         match command {
+        //             Message::IpcOk => {
+        //                 println!("Ok");
+        //                 return Ok(());
+        //             }
+        //             Message::IpcErr(message) => {
+        //                 println!("{}", message);
+        //             }
+        //             _ => {
+        //                 unreachable!();
+        //             }
+        //         }
+        //     }
+        //     _ = sleep => {
+        //         println!("timeout. could not connect to hyprkool");
+        //     }
+        // }
+        Ok(true)
+    } else {
+        Ok(false)
     }
 }
