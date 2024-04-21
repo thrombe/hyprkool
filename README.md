@@ -106,6 +106,7 @@ You can install hyprkool plugin just like other [hyprland plugins](https://githu
 ~/.config/hypr/hyprkool.toml
 ```toml
 # activity names (first activity is treated as default)
+# note: only a-z A-Z 0-9 - _ characters are allowed in the name
 activities = ["my-default-activity", "my-activity"]
 
 # number of workspaces in x and y dimensions
