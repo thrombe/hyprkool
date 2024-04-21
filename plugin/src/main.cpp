@@ -367,7 +367,7 @@ class OverviewWorkspace {
     }
 };
 
-std::regex overview_pattern("([a-zA-Z0-9-_]+):\\(([0-9]+) ([0-9]+)\\):overview");
+std::regex overview_pattern("([a-zA-Z0-9-_ ]+):\\(([0-9]+) ([0-9]+)\\):overview");
 class GridOverview {
   public:
     std::string activity;
