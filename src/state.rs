@@ -24,7 +24,18 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: Config) -> Result<Self> {
+        for a in config.activities.iter() {
+            for c in a.chars() {
+                if !c.is_alphanumeric() && !"-_".contains(c) {
+                    return Err(anyhow!(
+                        "Activity names can only contain a-z A-Z 0-9 - and _ characters. char '{}' in '{}' is not allowed",
+                        c,
+                        a,
+                    ));
+                }
+            }
+        }
         let (x, y) = config.workspaces;
         let raw_workspaces = (1..=y).flat_map(|y| (1..=x).map(move |x| (x, y)));
         let mut activities = config.activities.clone();
@@ -41,13 +52,13 @@ impl State {
             })
             .collect::<Vec<_>>();
 
-        Self {
+        Ok(Self {
             focused: HashMap::new(),
             named_focii: config.named_focii.clone(),
             activities,
             workspaces: cooked_workspaces,
             config,
-        }
+        })
     }
 
     pub fn get_activity_index(&self, name: impl AsRef<str>) -> Option<usize> {

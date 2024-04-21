@@ -80,7 +80,13 @@ async fn main() -> Result<()> {
         Command::Daemon {
             move_to_hyprkool_activity,
         } => {
-            let state = State::new(cli.config()?);
+            let state = match State::new(cli.config()?) {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("{}", e);
+                    return Ok(());
+                }
+            };
             let state = Arc::new(Mutex::new(state));
             let mut md = MouseDaemon::new(state.clone()).await?;
             let id = IpcDaemon::new(state.clone()).await?;
@@ -157,10 +163,17 @@ async fn main() -> Result<()> {
             }
             dbg!("falling back to stateless commands");
 
+            let state = match State::new(cli.config()?) {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("{}", e);
+                    return Ok(());
+                }
+            };
             command
                 .execute(
                     InfoOutputStream::Stdout,
-                    Arc::new(Mutex::new(State::new(cli.config()?))),
+                    Arc::new(Mutex::new(state)),
                     monitor,
                 )
                 .await?;
@@ -205,7 +218,13 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
             println!("falling back to stateless commands");
-            let state = State::new(cli.config()?);
+            let state = match State::new(cli.config()?) {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("{}", e);
+                    return Ok(());
+                }
+            };
             comm.execute(Arc::new(Mutex::new(state)), false).await?;
         }
     }
