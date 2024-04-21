@@ -1,20 +1,33 @@
 # Hyprkool
-An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) IPC plugin that tries to replicate the feel of KDE activities and grid layouts.
+An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries to replicate the feel of KDE activities and grid layouts.
 
 # Features
-- ability to switch desktops when cursor touches screen edges
+- switch desktops when cursor touches screen edges
 - grid layout
 - info commands for tools like eww and waybar
 - an optional daemon for stateful commands
+- a grid overview
 
-# Limitations
-- Hyprland IPC plugins can not yet control animation directionality
+# Usage
+Hyprkool consists of two main components: a CLI + daemon written in Rust and a C++ plugin.
+The CLI and daemon collectively provide most of the functionality.
+Additionally, there's an optional C++ plugin that offers a couple of features.
+- Changing workspace animations based on movement direction.
+- Grid overview.
 
-# Installation
-## Cargo
-```zsh
-cargo install --locked hyprkool
-```
+The plugin is tested and compatible with Hyprland v0.39.0 and newer versions. While the daemon and cli should work with any reasonably new version of Hyprland.
+
+The daemon component of Hyprkool is also optional but required for certain features, including:
+- Desktop switching when the cursor touches screen edges.
+- Remembering the last workspace per activity.
+- Named focus
+
+# Installing Cli/Daemon
+<!-- enable when new version of hyprland-rs drops -->
+<!-- ### Cargo -->
+<!-- ```zsh -->
+<!-- cargo install --locked hyprkool -->
+<!-- ``` -->
 
 ## Install from source
 ```zsh
@@ -33,20 +46,58 @@ Else add the following to your nix flake
 ```nix
 {
   inputs = {
-    ...
-
+    # ...
     # define flake input
     hyprkool.url = "github:thrombe/hyprkool";
   };
 
-  ...
+  # ...
 
     # then add it to your environment packages
     packages = [
       inputs.hyprkool.packages."${system}".default
     ];
 
-  ...
+  # ...
+}
+```
+
+## Installing the Plugin
+### using [hyprpm](https://wiki.hyprland.org/0.39.0/Plugins/Using-Plugins/#hyprpm)
+```zsh
+hyprpm add https://github.com/thrombe/hyprkool
+hyprpm enable hyprkool
+```
+
+### Nix
+It is recommended that you are using Hyprland flake.
+You can install hyprkool plugin just like other [hyprland plugins](https://github.com/hyprwm/hyprland-plugins?tab=readme-ov-file#nix).
+```nix
+{
+  inputs = {
+    # ...
+    hyprland.url = "github:hyprwm/Hyprland";
+    hyprkool = {
+      url = "github:thrombe/hyprkool";
+      inputs.hyprland.follows = "hyprland";
+    };
+  };
+
+  # ...
+
+    # then, you can use the plugins with the Home Manager module
+    {inputs, pkgs, ...}: {
+      wayland.windowManager.hyprland = {
+        enable = true;
+        # ...
+        plugins = [
+          inputs.hyprkool.packages.${pkgs.system}.hyprkool-plugin
+          # ...
+        ];
+      };
+    }
+
+  # ...
 }
 ```
 
@@ -86,11 +137,10 @@ edge_margin = 2
 animations {
   ...
 
-  # animations work fine, but afaik there is no way to control
-  # which side the workspaces slide from as a hyprland IPC plugin
-  # so i recommend either turning off animations for workspaces
-  # or using animation styles that do not have directionality. (eg fade)
-  animation = workspaces, 0
+  # i recommend setting workspace animations to fade by default
+  # hyprkool plugin will set the animation to slide with appropriate
+  # direction when you switch between workspaces
+  animation = workspaces, 1, 2, default, fade
 }
 
 # Switch activity
@@ -125,11 +175,17 @@ bind = $mainMod SHIFT, 1, exec, hyprkool set-named-focus -n 1
 bind = $mainMod SHIFT, 2, exec, hyprkool set-named-focus -n 2
 bind = $mainMod SHIFT, 3, exec, hyprkool set-named-focus -n 3
 
+# this only works if you have the hyprkool plugin
+bind = $mainMod, b, exec, hyprkool toggle-overview
+
 # this is optional, but it can provide features like
 # - remembering the last focused workspace in an activity
 # - switch workspaces when mouse touches screen edges
 # - named focus
 exec-once = hyprkool daemon -m
+
+# to load the plugin at startup: https://wiki.hyprland.org/0.39.0/Plugins/Using-Plugins/#hyprpm
+exec-once = hyprpm reload -n
 ```
 
 ## Troubleshooting
@@ -160,42 +216,5 @@ and waybar (using [`exec`](https://github.com/Alexays/Waybar/wiki/Module:-Custom
 this kind of efficient updates.
 
 ### Eww config
-Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/372a47c0a7ed3c3280e110755803ee422c7c4977/configma/tools/home/.config/eww/eww.yuck)
+Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/372a47c0a7ed3c3280e110755803ee422c7c4977/configma/tools/home/.config/eww/eww.yuck).
 
-
-### Waybar config
-it simply uses the unicode Full block characters '█' to show activities.
-it looks something like this
-<br>
-![activity status indicator](./screenshots/activity_status.png)
-
-~/.config/waybar/config
-```json
-{
-  ...
-
-  "custom/hyprkool-workspaces": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "hyprkool info -m waybar-activity-status"
-  },
-  "custom/hyprkool-window": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "hyprkool info -m waybar-active-window",
-  },
-}
-```
-
-~/.config/waybar/style.css
-```css
-#custom-hyprkool-workspaces {
-  border: none;
-  font-size: 7px;
-  color: #ebdbb2;
-  background: #7c6f64;
-  border-radius: 3px;
-  padding: 2px;
-  margin: 1px;
-}
-```

@@ -13,7 +13,7 @@ use tokio::{
     sync::Mutex,
 };
 
-use crate::{Command, Config, InfoOutputStream, Message, State};
+use crate::{state::Animation, Command, Config, InfoOutputStream, Message, State};
 
 pub struct MouseDaemon {
     state: Arc<Mutex<State>>,
@@ -73,23 +73,32 @@ impl MouseDaemon {
             let mut c = CursorPosition::get_async().await?;
             let mut y = 0;
             let mut x = 0;
+            let mut anim = Animation::Fade;
             if c.x <= w {
                 x += nx - 1;
                 c.x = self.monitor.width as i64 - m;
+                anim = Animation::Left;
             } else if c.x >= self.monitor.width as i64 - 1 - w {
                 x += 1;
                 c.x = m;
+                anim = Animation::Right;
             }
             if c.y <= w {
                 y += ny - 1;
                 c.y = self.monitor.height as i64 - m;
+                anim = Animation::Up;
             } else if c.y >= self.monitor.height as i64 - 1 - w {
                 y += 1;
                 c.y = m;
+                anim = Animation::Down;
             }
 
             if x + y == 0 {
                 continue;
+            }
+
+            if x > 0 && y > 0 {
+                anim = Animation::Fade;
             }
 
             let workspace = Workspace::get_active_async().await?;
@@ -116,7 +125,7 @@ impl MouseDaemon {
 
             let new_workspace = &state.workspaces[current_activity_index][y * nx + x];
             if new_workspace != &workspace.name {
-                state.move_to_workspace(new_workspace, false).await?;
+                state.move_to_workspace(new_workspace, false, anim).await?;
                 Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
             }
         }
@@ -279,12 +288,24 @@ impl IpcDaemon {
     }
 }
 
-pub fn get_socket_path() -> Result<PathBuf> {
+pub fn get_socket_dir() -> Result<PathBuf> {
     let hypr_signature = std::env::var("HYPRLAND_INSTANCE_SIGNATURE")
         .context("could not get HYPRLAND_INSTANCE_SIGNATURE")?;
-    if fs::metadata("/tmp/hyprkool").is_err() {
-        fs::create_dir("/tmp/hyprkool")?;
+    let mut sock_path = PathBuf::from("/tmp/hyprkool");
+    sock_path.push(&hypr_signature);
+    if fs::metadata(&sock_path).is_err() {
+        fs::create_dir_all(&sock_path)?;
     }
-    let sock_path = format!("/tmp/hyprkool/{hypr_signature}.sock");
-    Ok(sock_path.into())
+    Ok(sock_path)
+}
+
+pub fn get_socket_path() -> Result<PathBuf> {
+    let mut sock_path = get_socket_dir()?;
+    sock_path.push("kool.sock");
+    Ok(sock_path)
+}
+pub fn get_plugin_socket_path() -> Result<PathBuf> {
+    let mut sock_path = get_socket_dir()?;
+    sock_path.push("plugin.sock");
+    Ok(sock_path)
 }
