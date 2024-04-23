@@ -278,6 +278,7 @@ class OverviewWorkspace {
         render_hyprland_wallpaper();
         render_bg_layers(time);
 
+        auto mouse = g_pInputManager->getMouseCoordsInternal();
         for (auto& w : g_pCompositor->m_vWindows) {
             if (!w) {
                 continue;
@@ -291,6 +292,16 @@ class OverviewWorkspace {
             }
             // TODO: special and pinned windows apparently go on top of everything in that order
             render_window(w.get(), time);
+
+            auto pos = w->m_vRealPosition.value();
+            auto size = w->m_vRealSize.value();
+            CBox wbox = CBox(pos.x, pos.y, size.x, size.y);
+            wbox.translate(box.pos());
+            wbox.scale(scale);
+            if (wbox.containsPoint(mouse)) {
+                // TODO: grab border size and colors
+                render_border(wbox, CColor(1.0, 0.0, 0.0, 1.0), 1);
+            }
         }
 
         render_top_layers(time);
@@ -368,10 +379,8 @@ class OverviewWorkspace {
         // }
     }
 
-    void render_border(CColor col, int border_size) {
+    void render_border(CBox bbox, CColor col, int border_size) {
         float bsize = border_size;
-        CBox bbox = box;
-        bbox.scale(scale);
         bbox.w -= 2.0 * bsize;
         bbox.h -= 2.0 * bsize;
         bbox.x += bsize;
@@ -461,10 +470,10 @@ class GridOverview {
         auto mouse = g_pInputManager->getMouseCoordsInternal();
         for (auto& ow : workspaces) {
             if (w->m_szName.starts_with(ow.name)) {
-                ow.render_border(cursor_ws_border, border_size);
+                ow.render_border(ow.box.copy().scale(ow.scale), cursor_ws_border, border_size);
             }
             if (ow.box.copy().scale(ow.scale).containsPoint(mouse)) {
-                ow.render_border(focus_border, border_size);
+                ow.render_border(ow.box.copy().scale(ow.scale), focus_border, border_size);
             }
         }
 
