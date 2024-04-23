@@ -368,8 +368,8 @@ class OverviewWorkspace {
         // }
     }
 
-    void render_border(CColor col) {
-        float bsize = 2.0;
+    void render_border(CColor col, int border_size) {
+        float bsize = border_size;
         CBox bbox = box;
         bbox.scale(scale);
         bbox.w -= 2.0 * bsize;
@@ -400,8 +400,7 @@ class GridOverview {
             (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_border")
                 ->getDataStaticPtr();
         static auto* const* BORDER_SIZE =
-            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprkool:overview:border_size")
-                ->getDataStaticPtr();
+            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "general:border_size")->getDataStaticPtr();
         cursor_ws_border = CColor(**CURSOR_WS_BORDER);
         focus_border = CColor(**FOCUS_BORDER);
         border_size = **BORDER_SIZE;
@@ -464,10 +463,10 @@ class GridOverview {
         mouse.y *= g_KoolConfig.workspaces_y;
         for (auto& ow : workspaces) {
             if (w->m_szName.starts_with(ow.name)) {
-                ow.render_border(cursor_ws_border);
+                ow.render_border(cursor_ws_border, border_size);
             }
             if (ow.box.containsPoint(mouse)) {
-                ow.render_border(focus_border);
+                ow.render_border(focus_border, border_size);
             }
         }
 
@@ -602,8 +601,7 @@ void init_hooks() {
 
 void init_hypr_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:cursor_ws_border", Hyprlang::INT{0xee33ccff});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_border", Hyprlang::INT{0xee00ff99});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:border_size", Hyprlang::INT{2});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_ws_border", Hyprlang::INT{0xee00ff99});
 }
 
 // Do NOT change this function.
