@@ -431,21 +431,13 @@ class GridOverview {
         g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
     }
 };
+GridOverview g_go;
 
-GridOverview go;
 void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
     if (!overview_enabled) {
         return;
     }
     const auto render_stage = std::any_cast<eRenderStage>(args);
-    go = {};
-    try {
-        go.init();
-    } catch (const std::exception& e) {
-        err_notif(e.what());
-        overview_enabled = false;
-        return;
-    }
 
     switch (render_stage) {
         case eRenderStage::RENDER_PRE: {
@@ -454,10 +446,10 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
             // CBox box = CBox(50, 50, 100.0, 100.0);
             // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
             overview_enabled = false;
-            go.render();
+            g_go.render();
             overview_enabled = true;
             // TODO: damaging entire window fixes the weird areas - but is inefficient
-            g_pHyprRenderer->damageBox(&go.box);
+            g_pHyprRenderer->damageBox(&g_go.box);
         } break;
         case eRenderStage::RENDER_POST_WINDOWS: {
         } break;
@@ -483,7 +475,18 @@ void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto const ws = std::any_cast<std::shared_ptr<CWorkspace>>(args);
     if (ws->m_szName.ends_with(":overview")) {
         overview_enabled = true;
+        g_go = {};
+        g_go.init();
     } else {
+        overview_enabled = false;
+    }
+}
+
+void safe_on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
+    try {
+        on_workspace(thisptr, info, args);
+    } catch (const std::exception& e) {
+        err_notif(e.what());
         overview_enabled = false;
     }
 }
@@ -523,7 +526,7 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     auto pos = g_pInputManager->getMouseCoordsInternal();
     pos.x *= g_KoolConfig.workspaces_x;
     pos.y *= g_KoolConfig.workspaces_y;
-    for (auto& w : go.workspaces) {
+    for (auto& w : g_go.workspaces) {
         if (w.box.containsPoint(pos)) {
             HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + w.name);
             return;
@@ -541,7 +544,7 @@ void init_hooks() {
     g_pRenderLayer->hook();
 
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
-    HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", on_workspace);
+    HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", safe_on_workspace);
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", on_window);
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
 
