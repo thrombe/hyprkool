@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
+#include <hyprland/src/config/ConfigDataValues.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/debug/Log.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
@@ -365,6 +366,19 @@ class OverviewWorkspace {
         //     render_layer(layer.get(), screen, time);
         // }
     }
+
+    void render_border() {
+        float bsize = 2.0;
+        CBox bbox = box;
+        bbox.scale(scale);
+        bbox.w -= 2.0*bsize;
+        bbox.h -= 2.0*bsize;
+        bbox.x += bsize;
+        bbox.y += bsize;
+        CGradientValueData grad = {CColor(1.0, 0, 0.0, 1.0) };
+
+        g_pHyprOpenGL->renderBorder(&bbox, grad, 0, bsize);
+    }
 };
 
 std::regex overview_pattern("([a-zA-Z0-9-_]+):\\(([0-9]+) ([0-9]+)\\):overview");
@@ -424,6 +438,15 @@ class GridOverview {
 
         for (auto& ow : workspaces) {
             ow.render(box, &time);
+        }
+
+        auto mouse = g_pInputManager->getMouseCoordsInternal();
+        mouse.x *= g_KoolConfig.workspaces_x;
+        mouse.y *= g_KoolConfig.workspaces_y;
+        for (auto& ow : workspaces) {
+            if (ow.box.containsPoint(mouse)) {
+                ow.render_border();
+            }
         }
 
         g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = br;
