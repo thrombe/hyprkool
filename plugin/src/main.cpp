@@ -20,6 +20,7 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprlang.hpp>
 #include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
@@ -367,15 +368,15 @@ class OverviewWorkspace {
         // }
     }
 
-    void render_border() {
+    void render_border(CColor col) {
         float bsize = 2.0;
         CBox bbox = box;
         bbox.scale(scale);
-        bbox.w -= 2.0*bsize;
-        bbox.h -= 2.0*bsize;
+        bbox.w -= 2.0 * bsize;
+        bbox.h -= 2.0 * bsize;
         bbox.x += bsize;
         bbox.y += bsize;
-        CGradientValueData grad = {CColor(1.0, 0, 0.0, 1.0) };
+        CGradientValueData grad = {col};
 
         g_pHyprOpenGL->renderBorder(&bbox, grad, 0, bsize);
     }
@@ -387,8 +388,24 @@ class GridOverview {
     std::string activity;
     std::vector<OverviewWorkspace> workspaces;
     CBox box;
+    CColor cursor_ws_border;
+    CColor focus_border;
+    int border_size;
 
     void init() {
+        static auto* const* CURSOR_WS_BORDER = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(
+                                                   PHANDLE, "plugin:hyprkool:overview:cursor_ws_border")
+                                                   ->getDataStaticPtr();
+        static auto* const* FOCUS_BORDER =
+            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_border")
+                ->getDataStaticPtr();
+        static auto* const* BORDER_SIZE =
+            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprkool:overview:border_size")
+                ->getDataStaticPtr();
+        cursor_ws_border = CColor(**CURSOR_WS_BORDER);
+        focus_border = CColor(**FOCUS_BORDER);
+        border_size = **BORDER_SIZE;
+
         auto& m = g_pCompositor->m_vMonitors[0];
         auto& w = m->activeWorkspace;
 
@@ -440,12 +457,17 @@ class GridOverview {
             ow.render(box, &time);
         }
 
+        auto& m = g_pCompositor->m_vMonitors[0];
+        auto& w = m->activeWorkspace;
         auto mouse = g_pInputManager->getMouseCoordsInternal();
         mouse.x *= g_KoolConfig.workspaces_x;
         mouse.y *= g_KoolConfig.workspaces_y;
         for (auto& ow : workspaces) {
+            if (w->m_szName.starts_with(ow.name)) {
+                ow.render_border(cursor_ws_border);
+            }
             if (ow.box.containsPoint(mouse)) {
-                ow.render_border();
+                ow.render_border(focus_border);
             }
         }
 
@@ -578,6 +600,17 @@ void init_hooks() {
     renderLayer = funcSearch[0].address;
 }
 
+void init_hypr_config() {
+    auto cursor_ws_border = CColor(0.0, 1.0, 0.0, 0.8);
+    auto focus_border = CColor(0.0, 0.0, 1.0, 0.8);
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:cursor_ws_border",
+                                Hyprlang::INT{cursor_ws_border.getAsHex()});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_border",
+                                Hyprlang::INT{focus_border.getAsHex()});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:border_size",
+                                Hyprlang::INT{2});
+}
+
 // Do NOT change this function.
 APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
@@ -598,6 +631,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     sock_path = get_socket_path();
 
     init_hooks();
+    init_hypr_config();
     set_config();
     // NOTE: throwing not allowed in another thread
     sock_thread = std::thread(safe_socket_serve);
