@@ -459,13 +459,11 @@ class GridOverview {
         auto& m = g_pCompositor->m_vMonitors[0];
         auto& w = m->activeWorkspace;
         auto mouse = g_pInputManager->getMouseCoordsInternal();
-        mouse.x *= g_KoolConfig.workspaces_x;
-        mouse.y *= g_KoolConfig.workspaces_y;
         for (auto& ow : workspaces) {
             if (w->m_szName.starts_with(ow.name)) {
                 ow.render_border(cursor_ws_border, border_size);
             }
-            if (ow.box.containsPoint(mouse)) {
+            if (ow.box.copy().scale(ow.scale).containsPoint(mouse)) {
                 ow.render_border(focus_border, border_size);
             }
         }
@@ -568,10 +566,8 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
         return;
     }
     auto pos = g_pInputManager->getMouseCoordsInternal();
-    pos.x *= g_KoolConfig.workspaces_x;
-    pos.y *= g_KoolConfig.workspaces_y;
     for (auto& w : g_go.workspaces) {
-        if (w.box.containsPoint(pos)) {
+        if (w.box.copy().scale(w.scale).containsPoint(pos)) {
             HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + w.name);
             return;
         }
