@@ -275,8 +275,8 @@ class OverviewWorkspace {
     float scale;
 
     void render(CBox screen, timespec* time) {
-        render_hyprland_wallpaper(screen);
-        render_bg_layers(screen, time);
+        render_hyprland_wallpaper();
+        render_bg_layers(time);
 
         for (auto& w : g_pCompositor->m_vWindows) {
             if (!w) {
@@ -290,13 +290,13 @@ class OverviewWorkspace {
                 continue;
             }
             // TODO: special and pinned windows apparently go on top of everything in that order
-            render_window(w.get(), screen, time);
+            render_window(w.get(), time);
         }
 
-        render_top_layers(screen, time);
+        render_top_layers(time);
     }
 
-    void render_window(CWindow* w, CBox screen, timespec* time) {
+    void render_window(CWindow* w, timespec* time) {
         auto& m = g_pCompositor->m_vMonitors[0];
 
         auto pos = w->m_vRealPosition.value();
@@ -322,7 +322,7 @@ class OverviewWorkspace {
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     }
 
-    void render_layer(SLayerSurface* layer, CBox screen, timespec* time) {
+    void render_layer(SLayerSurface* layer, timespec* time) {
         auto& m = g_pCompositor->m_vMonitors[0];
 
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
@@ -336,7 +336,7 @@ class OverviewWorkspace {
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     }
 
-    void render_hyprland_wallpaper(CBox screen) {
+    void render_hyprland_wallpaper() {
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
             {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
@@ -348,23 +348,23 @@ class OverviewWorkspace {
         g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     }
 
-    void render_bg_layers(CBox screen, timespec* time) {
+    void render_bg_layers(timespec* time) {
         auto& m = g_pCompositor->m_vMonitors[0];
         for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
-            render_layer(layer.get(), screen, time);
+            render_layer(layer.get(), time);
         }
         for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
-            render_layer(layer.get(), screen, time);
+            render_layer(layer.get(), time);
         }
     }
 
-    void render_top_layers(CBox screen, timespec* time) {
+    void render_top_layers(timespec* time) {
         auto& m = g_pCompositor->m_vMonitors[0];
         for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
-            render_layer(layer.get(), screen, time);
+            render_layer(layer.get(), time);
         }
         // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
-        //     render_layer(layer.get(), screen, time);
+        //     render_layer(layer.get(), time);
         // }
     }
 
