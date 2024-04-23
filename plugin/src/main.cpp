@@ -601,10 +601,8 @@ void init_hooks() {
 }
 
 void init_hypr_config() {
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:cursor_ws_border",
-                                Hyprlang::INT{CColor(0.0, 1.0, 0.0, 0.8).getAsHex()});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_border",
-                                Hyprlang::INT{CColor(0.0, 0.0, 1.0, 0.8).getAsHex()});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:cursor_ws_border", Hyprlang::INT{0xee33ccff});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_border", Hyprlang::INT{0xee00ff99});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:border_size", Hyprlang::INT{2});
 }
 
