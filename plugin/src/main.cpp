@@ -30,8 +30,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <thread>
-#include <unistd.h>
 #include <toml++/toml.hpp>
+#include <unistd.h>
 
 typedef void (*FuncRenderWindow)(void*, CWindow*, CMonitor*, timespec*, bool, eRenderPassMode, bool, bool);
 void* renderWindow;
@@ -432,12 +432,13 @@ class GridOverview {
     }
 };
 
+GridOverview go;
 void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
     if (!overview_enabled) {
         return;
     }
     const auto render_stage = std::any_cast<eRenderStage>(args);
-    GridOverview go;
+    go = {};
     try {
         go.init();
     } catch (const std::exception& e) {
@@ -507,6 +508,29 @@ void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
+void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
+    if (!overview_enabled) {
+        return;
+    }
+    const auto e = std::any_cast<wlr_pointer_button_event*>(args);
+    if (!e) {
+        return;
+    }
+
+    if (e->button != BTN_LEFT) {
+        return;
+    }
+    auto pos = g_pInputManager->getMouseCoordsInternal();
+    pos.x *= g_KoolConfig.workspaces_x;
+    pos.y *= g_KoolConfig.workspaces_y;
+    for (auto& w : go.workspaces) {
+        if (w.box.containsPoint(pos)) {
+            HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + w.name);
+            return;
+        }
+    }
+}
+
 void init_hooks() {
     static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
@@ -519,6 +543,7 @@ void init_hooks() {
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", on_workspace);
     HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", on_window);
+    HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     renderWindow = funcSearch[0].address;
