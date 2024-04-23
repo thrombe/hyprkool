@@ -293,11 +293,10 @@ class OverviewWorkspace {
             // TODO: special and pinned windows apparently go on top of everything in that order
             render_window(w.get(), time);
 
-            auto pos = w->m_vRealPosition.value();
-            auto size = w->m_vRealSize.value();
-            CBox wbox = CBox(pos.x, pos.y, size.x, size.y);
+            CBox wbox = w->getFullWindowBoundingBox();
             wbox.translate(box.pos());
             wbox.scale(scale);
+            wbox.round();
             if (wbox.containsPoint(mouse)) {
                 // TODO: grab border size and colors
                 render_border(wbox, CColor(1.0, 0.0, 0.0, 1.0), 1);
@@ -310,9 +309,7 @@ class OverviewWorkspace {
     void render_window(CWindow* w, timespec* time) {
         auto& m = g_pCompositor->m_vMonitors[0];
 
-        auto pos = w->m_vRealPosition.value();
-        auto size = w->m_vRealSize.value();
-        CBox wbox = CBox(pos.x, pos.y, size.x, size.y);
+        CBox wbox = w->getFullWindowBoundingBox();
 
         auto o_ws = w->m_pWorkspace;
 
@@ -380,14 +377,11 @@ class OverviewWorkspace {
     }
 
     void render_border(CBox bbox, CColor col, int border_size) {
-        float bsize = border_size;
-        bbox.w -= 2.0 * bsize;
-        bbox.h -= 2.0 * bsize;
-        bbox.x += bsize;
-        bbox.y += bsize;
+        bbox.expand(-border_size);
+        bbox.round();
         CGradientValueData grad = {col};
 
-        g_pHyprOpenGL->renderBorder(&bbox, grad, 0, bsize);
+        g_pHyprOpenGL->renderBorder(&bbox, grad, 0, border_size);
     }
 };
 
