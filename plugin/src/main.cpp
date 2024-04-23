@@ -569,9 +569,26 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
         return;
     }
     auto pos = g_pInputManager->getMouseCoordsInternal();
-    for (auto& w : g_go.workspaces) {
-        if (w.box.copy().scale(w.scale).containsPoint(pos)) {
-            HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + w.name);
+    for (auto& w: g_pCompositor->m_vWindows) {
+        auto wbox = w->getFullWindowBoundingBox();
+        for (auto& ow : g_go.workspaces) {
+            if (!w->m_pWorkspace) {
+                continue;
+            }
+            if (w->m_pWorkspace->m_szName.starts_with(ow.name)) {
+                wbox.translate(ow.box.pos());
+                wbox.scale(ow.scale);
+                wbox.round();
+                if (wbox.containsPoint(pos)) {
+                    HyprlandAPI::invokeHyprctlCommand("dispatch", "focuswindow pid:" + std::to_string(w->getPID()));
+                }
+                return;
+            }
+        }
+    }
+    for (auto& ow : g_go.workspaces) {
+        if (ow.box.copy().scale(ow.scale).containsPoint(pos)) {
+            HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + ow.name);
             return;
         }
     }
