@@ -444,7 +444,7 @@ impl Command {
                                 .await?;
                         } else {
                             return Err(anyhow!(
-                                "hyprkool plugin muust be running for this feature to work."
+                                "hyprkool plugin must be running for this feature to work."
                             ));
                         }
                     }
