@@ -584,8 +584,8 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
                 wbox.round();
                 if (wbox.containsPoint(pos)) {
                     HyprlandAPI::invokeHyprctlCommand("dispatch", "focuswindow pid:" + std::to_string(w->getPID()));
+                    return;
                 }
-                return;
             }
         }
     }
