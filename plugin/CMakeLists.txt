@@ -29,4 +29,3 @@ add_library(hyprkool SHARED
 add_compile_definitions(WLR_USE_UNSTABLE)
 
 target_include_directories(hyprkool PRIVATE ${DEPS_INCLUDE_DIRS})
-set_target_properties(hyprkool PROPERTIES PREFIX "")

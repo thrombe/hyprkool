@@ -9,7 +9,7 @@ authors = ["thrombe"]
 [hyprkool]
 # description = ""
 authors = ["thrombe"]
-output = "plugin/build/hyprkool.so"
+output = "plugin/build/libhyprkool.so"
 build = [
     "make plugin"
 ]
