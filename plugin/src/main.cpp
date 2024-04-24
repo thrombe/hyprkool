@@ -386,6 +386,9 @@ class OverviewWorkspace {
 };
 
 std::regex overview_pattern("([a-zA-Z0-9-_]+):\\(([0-9]+) ([0-9]+)\\):overview");
+const char* CURSOR_WS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:cursor_ws_border";
+const char* FOCUS_WS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:focus_ws_border";
+const char* BORDER_SIZE_CONFIG_NAME = "general:border_size";
 class GridOverview {
   public:
     std::string activity;
@@ -397,13 +400,13 @@ class GridOverview {
 
     void init() {
         static auto* const* CURSOR_WS_BORDER =
-            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprkool:overview:cursor_ws_border")
+            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, CURSOR_WS_BORDER_CONFIG_NAME)
                 ->getDataStaticPtr();
         static auto* const* FOCUS_BORDER =
-            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_border")
+            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, FOCUS_WS_BORDER_CONFIG_NAME)
                 ->getDataStaticPtr();
         static auto* const* BORDER_SIZE =
-            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "general:border_size")->getDataStaticPtr();
+            (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, BORDER_SIZE_CONFIG_NAME)->getDataStaticPtr();
         cursor_ws_border = CColor(**CURSOR_WS_BORDER);
         focus_border = CColor(**FOCUS_BORDER);
         border_size = **BORDER_SIZE;
@@ -519,9 +522,9 @@ void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
 void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto const ws = std::any_cast<std::shared_ptr<CWorkspace>>(args);
     if (ws->m_szName.ends_with(":overview")) {
-        overview_enabled = true;
         g_go = {};
         g_go.init();
+        overview_enabled = true;
     } else {
         overview_enabled = false;
     }
@@ -569,7 +572,7 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
         return;
     }
     auto pos = g_pInputManager->getMouseCoordsInternal();
-    for (auto& w: g_pCompositor->m_vWindows) {
+    for (auto& w : g_pCompositor->m_vWindows) {
         auto wbox = w->getFullWindowBoundingBox();
         for (auto& ow : g_go.workspaces) {
             if (!w->m_pWorkspace) {
@@ -616,8 +619,8 @@ void init_hooks() {
 }
 
 void init_hypr_config() {
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:cursor_ws_border", Hyprlang::INT{0xee33ccff});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprkool:overview:focus_ws_border", Hyprlang::INT{0xee00ff99});
+    HyprlandAPI::addConfigValue(PHANDLE, CURSOR_WS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee33ccff});
+    HyprlandAPI::addConfigValue(PHANDLE, FOCUS_WS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee00ff99});
 }
 
 // Do NOT change this function.
