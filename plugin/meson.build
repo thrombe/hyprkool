@@ -25,6 +25,7 @@ hyprland = dependency('hyprland')
 
 shared_module(meson.project_name(), src,
   dependencies: [
+    dependency('tomlplusplus'),
     dependency('hyprland'),
     dependency('pixman-1'),
     dependency('libdrm'),

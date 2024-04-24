@@ -15,7 +15,7 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 # pkg_check_modules(DEPS REQUIRED hyprland)
-pkg_check_modules(DEPS REQUIRED hyprland pixman-1 libdrm)
+pkg_check_modules(DEPS REQUIRED hyprland pixman-1 libdrm tomlplusplus)
 
 # Compile flags
 set(CMAKE_CXX_STANDARD 23)
