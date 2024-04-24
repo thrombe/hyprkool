@@ -583,7 +583,9 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
                 wbox.scale(ow.scale);
                 wbox.round();
                 if (wbox.containsPoint(pos)) {
-                    HyprlandAPI::invokeHyprctlCommand("dispatch", "focuswindow pid:" + std::to_string(w->getPID()));
+                    // Hyprland/src/desktop/Window.hpp:467
+                    HyprlandAPI::invokeHyprctlCommand("dispatch", std::string("focuswindow address:") +
+                                                                      std::format("0x{:x}", (uintptr_t)w.get()));
                     return;
                 }
             }
