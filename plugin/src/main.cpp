@@ -274,11 +274,12 @@ class OverviewWorkspace {
     CBox box;
     float scale;
 
-    void render(CBox screen, timespec* time) {
+    bool render(CBox screen, timespec* time) {
         render_hyprland_wallpaper();
         render_bg_layers(time);
 
         auto mouse = g_pInputManager->getMouseCoordsInternal();
+        auto did_render_border = false;
         for (auto& w : g_pCompositor->m_vWindows) {
             if (!w) {
                 continue;
@@ -300,10 +301,12 @@ class OverviewWorkspace {
             if (wbox.containsPoint(mouse)) {
                 // TODO: grab border size and colors
                 render_border(wbox, CColor(1.0, 0.0, 0.0, 1.0), 1);
+                did_render_border = true;
             }
         }
 
         render_top_layers(time);
+        return did_render_border;
     }
 
     void render_window(CWindow* w, timespec* time) {
@@ -458,8 +461,10 @@ class GridOverview {
 
         // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
 
+        auto did_render_border = false;
         for (auto& ow : workspaces) {
-            ow.render(box, &time);
+            auto r = ow.render(box, &time);
+            did_render_border = did_render_border || r;
         }
 
         auto& m = g_pCompositor->m_vMonitors[0];
@@ -467,10 +472,10 @@ class GridOverview {
         auto mouse = g_pInputManager->getMouseCoordsInternal();
         for (auto& ow : workspaces) {
             if (w->m_szName.starts_with(ow.name)) {
-                ow.render_border(ow.box.copy().scale(ow.scale), cursor_ws_border, border_size);
-            }
-            if (ow.box.copy().scale(ow.scale).containsPoint(mouse)) {
                 ow.render_border(ow.box.copy().scale(ow.scale), focus_border, border_size);
+            }
+            if (ow.box.copy().scale(ow.scale).containsPoint(mouse) && !did_render_border) {
+                ow.render_border(ow.box.copy().scale(ow.scale), cursor_ws_border, border_size);
             }
         }
 
