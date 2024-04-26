@@ -297,6 +297,7 @@ class OverviewWorkspace {
             CBox wbox = w->getFullWindowBoundingBox();
             wbox.translate(box.pos());
             wbox.scale(scale);
+            wbox.expand(-1);
             wbox.round();
             if (wbox.containsPoint(mouse)) {
                 // TODO: grab border size and colors
