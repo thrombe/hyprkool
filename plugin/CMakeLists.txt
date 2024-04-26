@@ -24,7 +24,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(hyprkool SHARED
-            src/main.cpp)
+    src/main.cpp
+    src/overview.cpp
+    src/utils.cpp
+)
 
 add_compile_definitions(WLR_USE_UNSTABLE)
 
