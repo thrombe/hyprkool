@@ -10,7 +10,7 @@ class OverviewWorkspace {
     CBox box;
     float scale;
 
-    bool render(CBox screen, timespec* time);
+    void render(CBox screen, timespec* time);
     void render_window(CWindow* w, timespec* time);
     void render_layer(SLayerSurface* layer, timespec* time);
     void render_hyprland_wallpaper();

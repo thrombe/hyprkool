@@ -12,12 +12,10 @@ const char* FOCUS_WS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:focus_ws_bor
 const char* GAP_SIZE_CONFIG_NAME = "plugin:hyprkool:overview:ws_gap_size";
 const char* BORDER_SIZE_CONFIG_NAME = "general:border_size";
 
-bool OverviewWorkspace::render(CBox screen, timespec* time) {
+void OverviewWorkspace::render(CBox screen, timespec* time) {
     render_hyprland_wallpaper();
     render_bg_layers(time);
 
-    auto mouse = g_pInputManager->getMouseCoordsInternal();
-    auto did_render_border = false;
     for (auto& w : g_pCompositor->m_vWindows) {
         if (!w) {
             continue;
@@ -31,20 +29,9 @@ bool OverviewWorkspace::render(CBox screen, timespec* time) {
         }
         // TODO: special and pinned windows apparently go on top of everything in that order
         render_window(w.get(), time);
-
-        CBox wbox = w->getFullWindowBoundingBox();
-        wbox.scale(scale);
-        wbox.translate(box.pos());
-        wbox.expand(-1);
-        wbox.round();
-        if (wbox.containsPoint(mouse)) {
-            render_border(wbox, g_go.cursor_ws_border, g_go.border_size);
-            did_render_border = true;
-        }
     }
 
     render_top_layers(time);
-    return did_render_border;
 }
 
 void OverviewWorkspace::render_window(CWindow* w, timespec* time) {
@@ -198,21 +185,58 @@ void GridOverview::render() {
 
     g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
 
-    auto did_render_border = false;
     for (auto& ow : workspaces) {
-        auto r = ow.render(box, &time);
-        did_render_border = did_render_border || r;
+        ow.render(box, &time);
     }
 
     auto m = g_pCompositor->getMonitorFromCursor();
-    auto& w = m->activeWorkspace;
+    auto& aw = m->activeWorkspace;
+
     auto mouse = g_pInputManager->getMouseCoordsInternal();
-    for (auto& ow : workspaces) {
-        if (w->m_szName.starts_with(ow.name)) {
-            ow.render_border(ow.box.copy().expand(border_size), focus_border, border_size);
+    bool did_render_focus_ws_border = false;
+    bool did_render_cursor_ws_border = false;
+    for (auto& w : g_pCompositor->m_vWindows) {
+        if (!w) {
+            continue;
         }
-        if (ow.box.containsPoint(mouse) && !did_render_border) {
-            ow.render_border(ow.box.copy().expand(border_size), cursor_ws_border, border_size);
+        auto& ws = w->m_pWorkspace;
+        if (!ws) {
+            continue;
+        }
+        for (auto& ow : workspaces) {
+            if (ws->m_szName == ow.name) {
+                CBox wbox = w->getFullWindowBoundingBox();
+                wbox.scale(ow.scale);
+                wbox.translate(ow.box.pos());
+                wbox.expand(-1);
+                wbox.round();
+
+                if (aw->m_szName.starts_with(ow.name) && ws->getLastFocusedWindow() == w.get()) {
+                    ow.render_border(wbox, g_go.focus_border, g_go.border_size);
+                    did_render_focus_ws_border = true;
+                }
+
+                if (wbox.containsPoint(mouse)) {
+                    ow.render_border(wbox, g_go.cursor_ws_border, g_go.border_size);
+                    did_render_cursor_ws_border = true;
+                }
+            }
+        }
+    }
+
+    if (!did_render_focus_ws_border) {
+        for (auto& ow : workspaces) {
+            if (aw->m_szName.starts_with(ow.name)) {
+                ow.render_border(ow.box.copy().expand(border_size), focus_border, border_size);
+            }
+        }
+    }
+
+    if (!did_render_cursor_ws_border) {
+        for (auto& ow : workspaces) {
+            if (ow.box.containsPoint(mouse)) {
+                ow.render_border(ow.box.copy().expand(border_size), cursor_ws_border, border_size);
+            }
         }
     }
 
