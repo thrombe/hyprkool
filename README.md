@@ -144,6 +144,17 @@ animations {
   animation = workspaces, 1, 2, default, fade
 }
 
+# default hyprkool plugin configuration
+plugin {
+    hyprkool {
+        overview {
+            hover_border_color = rgba(33ccffee)
+            focus_border_color = rgba(00ff99ee)
+            workspace_gap_size = 10
+        }
+    }
+}
+
 # Switch activity
 bind = $mainMod, TAB, exec, hyprkool next-activity -c
 
