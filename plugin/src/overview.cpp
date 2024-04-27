@@ -7,9 +7,9 @@
 
 std::regex overview_pattern("([a-zA-Z0-9-_]+):\\(([0-9]+) ([0-9]+)\\):overview");
 GridOverview g_go;
-const char* CURSOR_WS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:cursor_ws_border";
-const char* FOCUS_WS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:focus_ws_border";
-const char* GAP_SIZE_CONFIG_NAME = "plugin:hyprkool:overview:ws_gap_size";
+const char* HOVER_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:hover_border_color";
+const char* FOCUS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:focus_border_color";
+const char* GAP_SIZE_CONFIG_NAME = "plugin:hyprkool:overview:workspace_gap_size";
 const char* BORDER_SIZE_CONFIG_NAME = "general:border_size";
 
 void OverviewWorkspace::render(CBox screen, timespec* time) {
@@ -113,9 +113,9 @@ void OverviewWorkspace::render_border(CBox bbox, CColor col, int border_size) {
 
 void GridOverview::init() {
     static auto* const* CURSOR_WS_BORDER =
-        (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, CURSOR_WS_BORDER_CONFIG_NAME)->getDataStaticPtr();
+        (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, HOVER_BORDER_CONFIG_NAME)->getDataStaticPtr();
     static auto* const* FOCUS_BORDER =
-        (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, FOCUS_WS_BORDER_CONFIG_NAME)->getDataStaticPtr();
+        (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, FOCUS_BORDER_CONFIG_NAME)->getDataStaticPtr();
     static auto* const* BORDER_SIZE =
         (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, BORDER_SIZE_CONFIG_NAME)->getDataStaticPtr();
     static auto* const* GAP_SIZE =

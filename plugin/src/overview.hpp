@@ -34,7 +34,7 @@ class GridOverview {
 
 extern std::regex overview_pattern;
 extern GridOverview g_go;
-extern const char* CURSOR_WS_BORDER_CONFIG_NAME;
-extern const char* FOCUS_WS_BORDER_CONFIG_NAME;
-extern const char* BORDER_SIZE_CONFIG_NAME;
+extern const char* HOVER_BORDER_CONFIG_NAME;
+extern const char* FOCUS_BORDER_CONFIG_NAME;
+extern const char* GAP_SIZE_CONFIG_NAME;
 extern const char* GAP_SIZE_CONFIG_NAME;

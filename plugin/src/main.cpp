@@ -294,8 +294,8 @@ void init_hooks() {
 }
 
 void init_hypr_config() {
-    HyprlandAPI::addConfigValue(PHANDLE, CURSOR_WS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee33ccff});
-    HyprlandAPI::addConfigValue(PHANDLE, FOCUS_WS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee00ff99});
+    HyprlandAPI::addConfigValue(PHANDLE, HOVER_BORDER_CONFIG_NAME, Hyprlang::INT{0xee33ccff});
+    HyprlandAPI::addConfigValue(PHANDLE, FOCUS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee00ff99});
     HyprlandAPI::addConfigValue(PHANDLE, GAP_SIZE_CONFIG_NAME, Hyprlang::INT{10});
 }
 
