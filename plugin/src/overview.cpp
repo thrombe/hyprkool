@@ -106,6 +106,8 @@ void OverviewWorkspace::render_top_layers(timespec* time) {
 void OverviewWorkspace::render_border(CBox bbox, CColor col, int border_size) {
     bbox.expand(-border_size);
     bbox.round();
+    bbox.w = std::max(bbox.w, 1.0);
+    bbox.h = std::max(bbox.h, 1.0);
     CGradientValueData grad = {col};
 
     g_pHyprOpenGL->renderBorder(&bbox, grad, 0, border_size);
