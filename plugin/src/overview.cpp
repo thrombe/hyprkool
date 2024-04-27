@@ -37,8 +37,7 @@ bool OverviewWorkspace::render(CBox screen, timespec* time) {
         wbox.expand(-1);
         wbox.round();
         if (wbox.containsPoint(mouse)) {
-            // TODO: grab border size and colors
-            render_border(wbox, CColor(1.0, 0.0, 0.0, 1.0), 1);
+            render_border(wbox, g_go.cursor_ws_border, g_go.border_size);
             did_render_border = true;
         }
     }
