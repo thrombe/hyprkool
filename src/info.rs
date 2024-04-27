@@ -625,7 +625,7 @@ impl WindowStates {
             });
         }
 
-        let default_icon = self.get_default_app_icon()?;
+        let default_icon = self.get_default_app_icon().unwrap_or_default();
         let path = self.get_icon_path(&w.initial_class).unwrap_or(default_icon);
 
         Ok(WindowStatus {
