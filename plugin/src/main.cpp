@@ -252,8 +252,8 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
                 continue;
             }
             if (w->m_pWorkspace->m_szName.starts_with(ow.name)) {
-                wbox.translate(ow.box.pos());
                 wbox.scale(ow.scale);
+                wbox.translate(ow.box.pos());
                 wbox.round();
                 if (wbox.containsPoint(pos)) {
                     // Hyprland/src/desktop/Window.hpp:467
@@ -265,7 +265,7 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
         }
     }
     for (auto& ow : g_go.workspaces) {
-        if (ow.box.copy().scale(ow.scale).containsPoint(pos)) {
+        if (ow.box.containsPoint(pos)) {
             HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + ow.name);
             return;
         }
@@ -296,6 +296,7 @@ void init_hooks() {
 void init_hypr_config() {
     HyprlandAPI::addConfigValue(PHANDLE, CURSOR_WS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee33ccff});
     HyprlandAPI::addConfigValue(PHANDLE, FOCUS_WS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee00ff99});
+    HyprlandAPI::addConfigValue(PHANDLE, GAP_SIZE_CONFIG_NAME, Hyprlang::INT{10});
 }
 
 // Do NOT change this function.

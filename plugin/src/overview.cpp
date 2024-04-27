@@ -9,6 +9,7 @@ std::regex overview_pattern("([a-zA-Z0-9-_]+):\\(([0-9]+) ([0-9]+)\\):overview")
 GridOverview g_go;
 const char* CURSOR_WS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:cursor_ws_border";
 const char* FOCUS_WS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:focus_ws_border";
+const char* GAP_SIZE_CONFIG_NAME = "plugin:hyprkool:overview:ws_gap_size";
 const char* BORDER_SIZE_CONFIG_NAME = "general:border_size";
 
 bool OverviewWorkspace::render(CBox screen, timespec* time) {
@@ -32,8 +33,8 @@ bool OverviewWorkspace::render(CBox screen, timespec* time) {
         render_window(w.get(), time);
 
         CBox wbox = w->getFullWindowBoundingBox();
-        wbox.translate(box.pos());
         wbox.scale(scale);
+        wbox.translate(box.pos());
         wbox.expand(-1);
         wbox.round();
         if (wbox.containsPoint(mouse)) {
@@ -55,9 +56,9 @@ void OverviewWorkspace::render_window(CWindow* w, timespec* time) {
 
     w->m_pWorkspace = m->activeWorkspace;
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
+    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
     // TODO: damaging window like this doesn't work very well :/
     //       maybe set the pos and size before damaging
@@ -73,9 +74,9 @@ void OverviewWorkspace::render_layer(SLayerSurface* layer, timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
 
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
+    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
     (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m, time, false);
 
@@ -85,9 +86,9 @@ void OverviewWorkspace::render_layer(SLayerSurface* layer, timespec* time) {
 
 void OverviewWorkspace::render_hyprland_wallpaper() {
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
+    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
     g_pHyprOpenGL->clearWithTex();
 
@@ -130,6 +131,8 @@ void GridOverview::init() {
         (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, FOCUS_WS_BORDER_CONFIG_NAME)->getDataStaticPtr();
     static auto* const* BORDER_SIZE =
         (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, BORDER_SIZE_CONFIG_NAME)->getDataStaticPtr();
+    static auto* const* GAP_SIZE =
+        (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, GAP_SIZE_CONFIG_NAME)->getDataStaticPtr();
     cursor_ws_border = CColor(**CURSOR_WS_BORDER);
     focus_border = CColor(**FOCUS_BORDER);
     border_size = **BORDER_SIZE;
@@ -148,7 +151,16 @@ void GridOverview::init() {
     box.w = m->vecSize.x;
     box.h = m->vecSize.y;
 
-    float scale = 1.0 / (float)std::max(g_KoolConfig.workspaces_x, g_KoolConfig.workspaces_y);
+    float gap_size = **GAP_SIZE/2.0;
+    float dx = g_KoolConfig.workspaces_x;
+    float dy = g_KoolConfig.workspaces_y;
+
+    float scalex = ((box.w - (dx + 1) * gap_size)/box.w) / dx;
+    float scaley = ((box.h - (dy + 1) * gap_size)/box.h) / dy;
+    float scale = std::min(scalex, scaley);
+
+    float w_gap = (box.w * (1.0 - scale * dx)) / (dx + 1);
+    float h_gap = (box.h * (1.0 - scale * dy)) / (dy + 1);
 
     for (int y = 0; y < g_KoolConfig.workspaces_y; y++) {
         for (int x = 0; x < g_KoolConfig.workspaces_x; x++) {
@@ -157,6 +169,11 @@ void GridOverview::init() {
             ow.box = box;
             ow.box.x += box.w * x;
             ow.box.y += box.h * y;
+            ow.box.scale(scale);
+
+            ow.box.x += w_gap * (x + 1);
+            ow.box.y += h_gap * (y + 1);
+
             ow.scale = scale;
             workspaces.push_back(ow);
         }
@@ -179,7 +196,7 @@ void GridOverview::render() {
     g_pHyprOpenGL->m_RenderData.clipBox = box;
     g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
 
-    // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
+    g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
 
     auto did_render_border = false;
     for (auto& ow : workspaces) {
@@ -192,10 +209,10 @@ void GridOverview::render() {
     auto mouse = g_pInputManager->getMouseCoordsInternal();
     for (auto& ow : workspaces) {
         if (w->m_szName.starts_with(ow.name)) {
-            ow.render_border(ow.box.copy().scale(ow.scale), focus_border, border_size);
+            ow.render_border(ow.box.copy().expand(border_size), focus_border, border_size);
         }
-        if (ow.box.copy().scale(ow.scale).containsPoint(mouse) && !did_render_border) {
-            ow.render_border(ow.box.copy().scale(ow.scale), cursor_ws_border, border_size);
+        if (ow.box.containsPoint(mouse) && !did_render_border) {
+            ow.render_border(ow.box.copy().expand(border_size), cursor_ws_border, border_size);
         }
     }
 
