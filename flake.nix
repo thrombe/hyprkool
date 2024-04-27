@@ -134,7 +134,7 @@
           # sleep 5
 
           # instance="$(hyprctl instances -j | jq -r '. | length - 1')"
-          # hyprctl -i $instance plugin load $(realpath ./plugin/build/hyprkool.so)
+          # hyprctl -i $instance plugin load $(realpath ./plugin/build/libhyprkool.so)
 
           # wait $hyprland_pid
         '')
@@ -142,8 +142,8 @@
           #!/usr/bin/env bash
           cd $PROJECT_ROOT
           instance="$(hyprctl instances -j | jq -r '. | length - 1')"
-          hyprctl -i $instance plugin unload $(realpath ./plugin/build/hyprkool.so)
-          hyprctl -i $instance plugin load $(realpath ./plugin/build/hyprkool.so)
+          hyprctl -i $instance plugin unload $(realpath ./plugin/build/libhyprkool.so)
+          hyprctl -i $instance plugin load $(realpath ./plugin/build/libhyprkool.so)
         '')
         (pkgs.writeShellScriptBin "kool-rebuild-reload" ''
           #!/usr/bin/env bash
