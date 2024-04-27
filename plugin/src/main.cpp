@@ -218,7 +218,7 @@ void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
         return;
     }
     if (overview_enabled) {
-        auto& m = g_pCompositor->m_vMonitors[0];
+        auto m = g_pCompositor->getMonitorFromCursor();
         auto& w = m->activeWorkspace;
         if (std::regex_match(w->m_szName, overview_pattern)) {
             auto ss = std::istringstream(w->m_szName);

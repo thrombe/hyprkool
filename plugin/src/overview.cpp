@@ -48,7 +48,7 @@ bool OverviewWorkspace::render(CBox screen, timespec* time) {
 }
 
 void OverviewWorkspace::render_window(CWindow* w, timespec* time) {
-    auto& m = g_pCompositor->m_vMonitors[0];
+    auto m = g_pCompositor->getMonitorFromCursor();
 
     CBox wbox = w->getFullWindowBoundingBox();
 
@@ -63,7 +63,7 @@ void OverviewWorkspace::render_window(CWindow* w, timespec* time) {
     // TODO: damaging window like this doesn't work very well :/
     //       maybe set the pos and size before damaging
     // g_pHyprRenderer->damageWindow(w);
-    (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m.get(), time, true, RENDER_PASS_MAIN, false, false);
+    (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m, time, true, RENDER_PASS_MAIN, false, false);
 
     w->m_pWorkspace = o_ws;
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
@@ -71,14 +71,14 @@ void OverviewWorkspace::render_window(CWindow* w, timespec* time) {
 }
 
 void OverviewWorkspace::render_layer(SLayerSurface* layer, timespec* time) {
-    auto& m = g_pCompositor->m_vMonitors[0];
+    auto m = g_pCompositor->getMonitorFromCursor();
 
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
 
-    (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m.get(), time, false);
+    (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m, time, false);
 
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
@@ -97,7 +97,7 @@ void OverviewWorkspace::render_hyprland_wallpaper() {
 }
 
 void OverviewWorkspace::render_bg_layers(timespec* time) {
-    auto& m = g_pCompositor->m_vMonitors[0];
+    auto m = g_pCompositor->getMonitorFromCursor();
     for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
         render_layer(layer.get(), time);
     }
@@ -107,7 +107,7 @@ void OverviewWorkspace::render_bg_layers(timespec* time) {
 }
 
 void OverviewWorkspace::render_top_layers(timespec* time) {
-    auto& m = g_pCompositor->m_vMonitors[0];
+    auto m = g_pCompositor->getMonitorFromCursor();
     for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
         render_layer(layer.get(), time);
     }
@@ -135,7 +135,7 @@ void GridOverview::init() {
     focus_border = CColor(**FOCUS_BORDER);
     border_size = **BORDER_SIZE;
 
-    auto& m = g_pCompositor->m_vMonitors[0];
+    auto m = g_pCompositor->getMonitorFromCursor();
     auto& w = m->activeWorkspace;
 
     if (std::regex_match(w->m_szName, overview_pattern)) {
@@ -188,7 +188,7 @@ void GridOverview::render() {
         did_render_border = did_render_border || r;
     }
 
-    auto& m = g_pCompositor->m_vMonitors[0];
+    auto m = g_pCompositor->getMonitorFromCursor();
     auto& w = m->activeWorkspace;
     auto mouse = g_pInputManager->getMouseCoordsInternal();
     for (auto& ow : workspaces) {
