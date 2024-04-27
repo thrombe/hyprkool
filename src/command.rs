@@ -146,6 +146,7 @@ impl Command {
             let workspace = Workspace::get_active_async().await?;
             let a = match &self {
                 Command::SwitchToActivity { name, move_window } => {
+                    state.remember_workspace(&workspace);
                     Some((name.clone(), *move_window))
                 }
                 Command::NextActivity { cycle, move_window } => {
@@ -185,6 +186,7 @@ impl Command {
                         })
                         .unwrap_or(0);
                     let a = state.activities[i].clone();
+                    state.remember_workspace(&workspace);
                     Some((a, *move_window))
                 }
                 Command::SetNamedFocus { name } => {
@@ -209,6 +211,15 @@ impl Command {
                         .move_to_workspace(workspace.name, false, Animation::None)
                         .await?;
                     return Ok(());
+                }
+                Command::SwitchNamedFocus { name, move_window } => {
+                    if let Some(name) = state.named_focii.get(name) {
+                        let name = name.to_owned();
+                        state.remember_workspace(&workspace);
+                        Some((name, *move_window))
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             };
@@ -295,7 +306,6 @@ impl Command {
                 } else {
                     name = state.workspaces[new_activity_index][0].clone();
                 };
-                state.remember_workspace(&workspace);
                 state
                     .move_to_workspace(&name, move_window, Animation::Fade)
                     .await?;
@@ -324,7 +334,6 @@ impl Command {
                 } else {
                     name = state.workspaces[activity_index][0].clone();
                 };
-                state.remember_workspace(&workspace);
                 state
                     .move_to_workspace(&name, move_window, Animation::Fade)
                     .await?;
