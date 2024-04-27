@@ -256,8 +256,19 @@ impl InfoCommand {
                 });
                 print_state(stream.clone(), w, window_states.clone()).await?;
 
+                let ws = window_states.clone();
+                let s = stream.clone();
                 el.add_active_window_change_handler(move |e| {
-                    tokio::spawn(print_state(stream.clone(), e, window_states.clone()));
+                    let s = s.clone();
+                    let ws = ws.clone();
+                    tokio::spawn(async move {
+                        {
+                            let mut ws = ws.lock().await;
+                            ws.windows = Clients::get_async().await?.to_vec();
+                        }
+                        print_state(s.clone(), e, ws.clone()).await?;
+                        Result::<()>::Ok(())
+                    });
                 });
             }
             InfoCommand::ActiveWorkspaceWindows {
