@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::{anyhow, Result};
 use hyprland::{
@@ -8,11 +8,11 @@ use hyprland::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::{
-    io::{AsyncWriteExt, BufWriter},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::UnixStream,
 };
 
-use crate::{config::Config, daemon::get_plugin_socket_path};
+use crate::{config::Config, daemon::get_plugin_socket_path, Message};
 
 #[derive(Debug)]
 pub struct State {
@@ -215,33 +215,38 @@ async fn _send_plugin_event(e: usize) -> Result<bool> {
         sock.flush().await?;
         sock.shutdown().await?;
 
-        // TODO:
-        // let sleep = tokio::time::sleep(Duration::from_millis(300));
-        // let mut sock = BufReader::new(sock);
-        // let mut line = String::new();
-        // tokio::select! {
-        //     res = sock.read_line(&mut line) => {
-        //         res?;
-        //         let command = serde_json::from_str(&line)?;
-        //         match command {
-        //             Message::IpcOk => {
-        //                 println!("Ok");
-        //                 return Ok(());
-        //             }
-        //             Message::IpcErr(message) => {
-        //                 println!("{}", message);
-        //             }
-        //             _ => {
-        //                 unreachable!();
-        //             }
-        //         }
-        //     }
-        //     _ = sleep => {
-        //         println!("timeout. could not connect to hyprkool");
-        //     }
-        // }
-        Ok(true)
-    } else {
-        Ok(false)
+        let sleep = tokio::time::sleep(Duration::from_millis(300));
+        let mut sock = BufReader::new(sock);
+        let mut line = String::new();
+        tokio::select! {
+            res = sock.read_line(&mut line) => {
+                res?;
+                let command = match serde_json::from_str(&line) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        println!("{}", e);
+                        return Ok(false);
+                    }
+                };
+                match command {
+                    Message::IpcOk => {
+                        println!("Ok");
+                        return Ok(true);
+                    }
+                    Message::IpcErr(message) => {
+                        println!("{}", message);
+                        return Ok(false);
+                    }
+                    _ => {
+                        unreachable!();
+                    }
+                }
+            }
+            _ = sleep => {
+                println!("timeout. could not connect to hyprkool plugin");
+            }
+        }
     }
+
+    Ok(false)
 }

@@ -16,6 +16,20 @@ void handle_plugin_event(PluginEvent e) {
     }
 }
 
+void sendstr(int sockfd, const char *buf) {
+    ssize_t len = strlen(buf);
+    ssize_t total_sent = 0;
+    while (total_sent < len) {
+        ssize_t sent = send(sockfd, buf + total_sent, len - total_sent, 0);
+        if (sent == -1) {
+            throw_err_notif("Could not send all bytes across socket");
+            return;
+        }
+        total_sent += sent;
+    }
+    return;
+}
+
 void socket_connect(int clientfd) {
     char buffer[1024];
     std::string partial_line;
@@ -35,6 +49,7 @@ void socket_connect(int clientfd) {
             try {
                 auto e = static_cast<PluginEvent>(std::stoi(line));
                 handle_plugin_event(e);
+                sendstr(clientfd, "\"IpcOk\"\n");
             } catch (const std::exception& e) {
                 std::cerr << "Error parsing socket data: " << e.what() << std::endl;
                 continue;
