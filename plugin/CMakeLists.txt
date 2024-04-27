@@ -15,7 +15,7 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 # pkg_check_modules(DEPS REQUIRED hyprland)
-pkg_check_modules(DEPS REQUIRED hyprland pixman-1 libdrm)
+pkg_check_modules(DEPS REQUIRED hyprland pixman-1 libdrm tomlplusplus)
 
 # Compile flags
 set(CMAKE_CXX_STANDARD 23)
@@ -32,4 +32,3 @@ add_library(hyprkool SHARED
 add_compile_definitions(WLR_USE_UNSTABLE)
 
 target_include_directories(hyprkool PRIVATE ${DEPS_INCLUDE_DIRS})
-set_target_properties(hyprkool PROPERTIES PREFIX "")

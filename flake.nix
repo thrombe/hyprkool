@@ -61,7 +61,7 @@
 
         installPhase = ''
           mkdir -p $out/lib
-          cp ./${pname}.so $out/lib/.
+          cp ./lib${pname}.so $out/lib/lib${pname}.so
         '';
 
         nativeBuildInputs = with pkgs; [

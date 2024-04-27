@@ -12,7 +12,7 @@ else
   error('Could not configure current C++ compiler (' + cpp_compiler.get_id() + ' ' + cpp_compiler.version() + ') with required C++ standard (C++23)')
 endif
 
-cpp_args = []
+cpp_args = [ '-DWLR_USE_UNSTABLE' ]
 clangd = find_program('clangd')
 if clangd.found()
     cpp_args += ['-DUSE_CLANGD']
@@ -25,6 +25,7 @@ hyprland = dependency('hyprland')
 
 shared_module(meson.project_name(), src,
   dependencies: [
+    dependency('tomlplusplus'),
     dependency('hyprland'),
     dependency('pixman-1'),
     dependency('libdrm'),
