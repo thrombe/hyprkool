@@ -216,6 +216,7 @@ hyprkool info -m active-workspace-windows -t Papirus
 #### Some command does not work
 If a command does not work when using keybinds, try executing the same command in a terminal. Sometimes the error messages
 will give you a clue into what could be wrong.
+Also try using `--force-no-daemon` flag to check if something is wrong with the running daemon.
 
 ## Info commands
 Hyprkool supports some additional info commands that help you to build widgets using applications like
