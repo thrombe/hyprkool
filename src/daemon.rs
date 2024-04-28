@@ -43,7 +43,16 @@ impl MouseDaemon {
         {
             let state = self.state.lock().await;
 
-            if state.get_indices(&workspace.name).is_none() && move_to_hyprkool_activity {
+            fn hacky_activity_check(name: &str) -> bool {
+                // yeh exactly. :(
+                // activity_name:(x y)
+                name.contains(":(")
+            }
+
+            if move_to_hyprkool_activity
+                && (state.get_indices(&workspace.name).is_none()
+                    || !hacky_activity_check(&workspace.name))
+            {
                 Dispatch::call_async(DispatchType::Workspace(
                     WorkspaceIdentifierWithSpecial::Name(&state.workspaces[0][0]),
                 ))
