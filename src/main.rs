@@ -129,6 +129,17 @@ async fn main() -> Result<()> {
             }
             println!("exiting daemon");
         }
+        Command::Internal { command } => {
+            let state = match State::new(cli.config()?) {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("{}", e);
+                    return Ok(());
+                }
+            };
+            let state = Arc::new(Mutex::new(state));
+            command.execute(state).await?;
+        }
         Command::Info { command, monitor } => {
             if !cli.force_no_daemon {
                 if let Ok(sock) = UnixStream::connect(&sock_path).await {

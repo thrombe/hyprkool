@@ -17,6 +17,23 @@ use crate::{
 };
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum InternalCommand {
+    GetWorkspaceNums,
+}
+impl InternalCommand {
+    pub async fn execute(self, state: Arc<Mutex<State>>) -> Result<()> {
+        let state = state.lock().await;
+        match self {
+            InternalCommand::GetWorkspaceNums => {
+                let (x, y) = state.config.workspaces;
+                println!("{x} {y}");
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
     Daemon {
         #[arg(long, short, default_value_t = false)]
@@ -29,6 +46,13 @@ pub enum Command {
 
         #[arg(long, short, default_value_t = false)]
         monitor: bool,
+    },
+    // a bunch of commands to aid with the workings of hyprkool cpp plugin
+    // TODO: better name
+    #[clap(hide = true)]
+    Internal {
+        #[command(subcommand)]
+        command: InternalCommand,
     },
     FocusWindow {
         #[arg(long, short)]
