@@ -144,10 +144,11 @@ impl Command {
 
         if stateful {
             let workspace = Workspace::get_active_async().await?;
+            let is_in_focus = workspace.last_window.to_string() != "0x0";
             let a = match &self {
                 Command::SwitchToActivity { name, move_window } => {
                     state.remember_workspace(&workspace);
-                    Some((name.clone(), *move_window))
+                    Some((name.clone(), is_in_focus && *move_window))
                 }
                 Command::NextActivity { cycle, move_window } => {
                     let i = state
@@ -167,7 +168,7 @@ impl Command {
                         .unwrap_or(0);
                     let a = state.activities[i].clone();
                     state.remember_workspace(&workspace);
-                    Some((a, *move_window))
+                    Some((a, is_in_focus && *move_window))
                 }
                 Command::PrevActivity { cycle, move_window } => {
                     let i = state
@@ -187,7 +188,7 @@ impl Command {
                         .unwrap_or(0);
                     let a = state.activities[i].clone();
                     state.remember_workspace(&workspace);
-                    Some((a, *move_window))
+                    Some((a, is_in_focus && *move_window))
                 }
                 Command::SetNamedFocus { name } => {
                     let workspace = Workspace::get_active_async().await?;
@@ -216,7 +217,7 @@ impl Command {
                     if let Some(name) = state.named_focii.get(name) {
                         let name = name.to_owned();
                         state.remember_workspace(&workspace);
-                        Some((name, *move_window))
+                        Some((name, is_in_focus && *move_window))
                     } else {
                         None
                     }
@@ -240,19 +241,21 @@ impl Command {
                     state.get_indices(&name).context("activity not found")?;
                 let workspace_index = workspace_index.context("workspace not found")?;
                 let new_workspace = &state.workspaces[activity_index][workspace_index];
+                let is_in_focus = Client::get_active_async().await?.is_some();
                 state
-                    .move_to_workspace(new_workspace, move_window, Animation::Fade)
+                    .move_to_workspace(new_workspace, is_in_focus && move_window, Animation::Fade)
                     .await?;
             }
             Command::SwitchToWorkspaceInActivity { name, move_window } => {
                 let workspace = Workspace::get_active_async().await?;
+                let is_in_focus = workspace.last_window.to_string() != "0x0";
                 let activity_index = state
                     .get_activity_index(&workspace.name)
                     .context("could not get current activity")?;
                 let activity = &state.activities[activity_index];
                 let new_workspace = format!("{activity}:{name}");
                 state
-                    .move_to_workspace(&new_workspace, move_window, Animation::Fade)
+                    .move_to_workspace(&new_workspace, is_in_focus && move_window, Animation::Fade)
                     .await?;
             }
             Command::SwitchToActivity {
@@ -260,6 +263,7 @@ impl Command {
                 move_window,
             } => {
                 let workspace = Workspace::get_active_async().await?;
+                let is_in_focus = workspace.last_window.to_string() != "0x0";
                 if state.get_activity_index(&name).is_none() {
                     state.activities.push(name.clone());
                     let w = state.workspaces[0]
@@ -280,11 +284,12 @@ impl Command {
                     name.push_str("(1 1)");
                 };
                 state
-                    .move_to_workspace(&name, move_window, Animation::Fade)
+                    .move_to_workspace(&name, is_in_focus && move_window, Animation::Fade)
                     .await?;
             }
             Command::NextActivity { cycle, move_window } => {
                 let workspace = Workspace::get_active_async().await?;
+                let is_in_focus = workspace.last_window.to_string() != "0x0";
                 let activity_index = state.get_activity_index(&workspace.name);
                 let new_activity_index = activity_index
                     .map(|i| {
@@ -307,11 +312,12 @@ impl Command {
                     name = state.workspaces[new_activity_index][0].clone();
                 };
                 state
-                    .move_to_workspace(&name, move_window, Animation::Fade)
+                    .move_to_workspace(&name, is_in_focus && move_window, Animation::Fade)
                     .await?;
             }
             Command::PrevActivity { cycle, move_window } => {
                 let workspace = Workspace::get_active_async().await?;
+                let is_in_focus = workspace.last_window.to_string() != "0x0";
                 let activity_index = state.get_activity_index(&workspace.name);
                 let new_activity_index = activity_index
                     .map(|i| {
@@ -335,31 +341,35 @@ impl Command {
                     name = state.workspaces[activity_index][0].clone();
                 };
                 state
-                    .move_to_workspace(&name, move_window, Animation::Fade)
+                    .move_to_workspace(&name, is_in_focus && move_window, Animation::Fade)
                     .await?;
             }
             Command::MoveRight { cycle, move_window } => {
                 let workspace = state.moved_workspace(1, 0, cycle).await?;
+                let is_in_focus = Client::get_active_async().await?.is_some();
                 state
-                    .move_to_workspace(workspace, move_window, Animation::Right)
+                    .move_to_workspace(workspace, is_in_focus && move_window, Animation::Right)
                     .await?;
             }
             Command::MoveLeft { cycle, move_window } => {
                 let workspace = state.moved_workspace(-1, 0, cycle).await?;
+                let is_in_focus = Client::get_active_async().await?.is_some();
                 state
-                    .move_to_workspace(workspace, move_window, Animation::Left)
+                    .move_to_workspace(workspace, is_in_focus && move_window, Animation::Left)
                     .await?;
             }
             Command::MoveUp { cycle, move_window } => {
                 let workspace = state.moved_workspace(0, -1, cycle).await?;
+                let is_in_focus = Client::get_active_async().await?.is_some();
                 state
-                    .move_to_workspace(workspace, move_window, Animation::Up)
+                    .move_to_workspace(workspace, is_in_focus && move_window, Animation::Up)
                     .await?;
             }
             Command::MoveDown { cycle, move_window } => {
                 let workspace = state.moved_workspace(0, 1, cycle).await?;
+                let is_in_focus = Client::get_active_async().await?.is_some();
                 state
-                    .move_to_workspace(workspace, move_window, Animation::Down)
+                    .move_to_workspace(workspace, is_in_focus && move_window, Animation::Down)
                     .await?;
             }
             Command::ToggleSpecialWorkspace {
@@ -426,8 +436,9 @@ impl Command {
             }
             Command::SwitchNamedFocus { name, move_window } => {
                 if let Some(nf) = state.named_focii.get(&name) {
+                    let is_in_focus = Client::get_active_async().await?.is_some();
                     state
-                        .move_to_workspace(nf, move_window, Animation::Fade)
+                        .move_to_workspace(nf, is_in_focus && move_window, Animation::Fade)
                         .await?;
                 }
             }
