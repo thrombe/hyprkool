@@ -32,6 +32,10 @@ struct Cli {
 
     #[command(subcommand)]
     pub command: Command,
+
+    /// don't use daemon for this command even if one is active (mainly useful for debugging)
+    #[arg(long)]
+    pub force_no_daemon: bool,
 }
 
 impl Cli {
@@ -81,6 +85,11 @@ async fn main() -> Result<()> {
         Command::Daemon {
             move_to_hyprkool_activity,
         } => {
+            if cli.force_no_daemon {
+                println!("--force-no-daemon not allowed with this command");
+                return Ok(());
+            }
+
             let state = match State::new(cli.config()?) {
                 Ok(s) => s,
                 Err(e) => {
@@ -121,48 +130,50 @@ async fn main() -> Result<()> {
             println!("exiting daemon");
         }
         Command::Info { command, monitor } => {
-            if let Ok(sock) = UnixStream::connect(&sock_path).await {
-                let mut sock = BufWriter::new(sock);
-                sock.write_all(
-                    &Message::Command(Command::Info {
-                        command: command.clone(),
-                        monitor,
-                    })
-                    .msg(),
-                )
-                .await?;
-                sock.flush().await?;
-                sock.shutdown().await?;
+            if !cli.force_no_daemon {
+                if let Ok(sock) = UnixStream::connect(&sock_path).await {
+                    let mut sock = BufWriter::new(sock);
+                    sock.write_all(
+                        &Message::Command(Command::Info {
+                            command: command.clone(),
+                            monitor,
+                        })
+                        .msg(),
+                    )
+                    .await?;
+                    sock.flush().await?;
+                    sock.shutdown().await?;
 
-                let mut sock = BufReader::new(sock);
-                loop {
-                    let mut line = String::new();
-                    let _ = sock.read_line(&mut line).await?;
+                    let mut sock = BufReader::new(sock);
+                    loop {
+                        let mut line = String::new();
+                        let _ = sock.read_line(&mut line).await?;
 
-                    if !monitor && line.is_empty() {
-                        return Ok(());
-                    }
-
-                    let command = serde_json::from_str(&line)?;
-                    match command {
-                        Message::IpcMessage(message) => {
-                            println!("{}", message);
+                        if !monitor && line.is_empty() {
+                            return Ok(());
                         }
-                        Message::IpcErr(message) => {
-                            println!("{}", message);
-                        }
-                        _ => {
-                            unreachable!();
+
+                        let command = serde_json::from_str(&line)?;
+                        match command {
+                            Message::IpcMessage(message) => {
+                                println!("{}", message);
+                            }
+                            Message::IpcErr(message) => {
+                                println!("{}", message);
+                            }
+                            _ => {
+                                unreachable!();
+                            }
                         }
                     }
                 }
-            }
 
-            let config = cli.config()?;
-            if !config.daemon.fallback_commands {
-                return Ok(());
+                let config = cli.config()?;
+                if !config.daemon.fallback_commands {
+                    return Ok(());
+                }
+                dbg!("falling back to stateless commands");
             }
-            dbg!("falling back to stateless commands");
 
             let state = match State::new(cli.config()?) {
                 Ok(s) => s,
@@ -180,45 +191,48 @@ async fn main() -> Result<()> {
                 .await?;
         }
         comm => {
-            if let Ok(sock) = UnixStream::connect(&sock_path).await {
-                let mut sock = BufWriter::new(sock);
-                sock.write_all(&Message::Command(comm.clone()).msg())
-                    .await?;
-                sock.flush().await?;
-                sock.shutdown().await?;
+            if !cli.force_no_daemon {
+                if let Ok(sock) = UnixStream::connect(&sock_path).await {
+                    let mut sock = BufWriter::new(sock);
+                    sock.write_all(&Message::Command(comm.clone()).msg())
+                        .await?;
+                    sock.flush().await?;
+                    sock.shutdown().await?;
 
-                let sleep = tokio::time::sleep(Duration::from_millis(300));
-                let mut sock = BufReader::new(sock);
-                let mut line = String::new();
-                tokio::select! {
-                    res = sock.read_line(&mut line) => {
-                        res?;
-                        let command = serde_json::from_str(&line)?;
-                        match command {
-                            Message::IpcOk => {
-                                println!("Ok");
-                                return Ok(());
-                            }
-                            Message::IpcErr(message) => {
-                                println!("{}", message);
-                                return Ok(());
-                            }
-                            _ => {
-                                unreachable!();
+                    let sleep = tokio::time::sleep(Duration::from_millis(300));
+                    let mut sock = BufReader::new(sock);
+                    let mut line = String::new();
+                    tokio::select! {
+                        res = sock.read_line(&mut line) => {
+                            res?;
+                            let command = serde_json::from_str(&line)?;
+                            match command {
+                                Message::IpcOk => {
+                                    println!("Ok");
+                                    return Ok(());
+                                }
+                                Message::IpcErr(message) => {
+                                    println!("{}", message);
+                                    return Ok(());
+                                }
+                                _ => {
+                                    unreachable!();
+                                }
                             }
                         }
-                    }
-                    _ = sleep => {
-                        println!("timeout. could not connect to hyprkool");
+                        _ = sleep => {
+                            println!("timeout. could not connect to hyprkool");
+                        }
                     }
                 }
+
+                let config = cli.config()?;
+                if !config.daemon.fallback_commands {
+                    return Ok(());
+                }
+                println!("falling back to stateless commands");
             }
 
-            let config = cli.config()?;
-            if !config.daemon.fallback_commands {
-                return Ok(());
-            }
-            println!("falling back to stateless commands");
             let state = match State::new(cli.config()?) {
                 Ok(s) => s,
                 Err(e) => {
