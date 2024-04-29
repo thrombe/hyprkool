@@ -160,7 +160,7 @@ impl Command {
                             if *cycle {
                                 i = (i + 1) % n;
                             } else {
-                                i = (i + 1).min(n);
+                                i = (i + 1).min(n - 1);
                             }
                             i
                         })
@@ -289,11 +289,11 @@ impl Command {
                 let new_activity_index = activity_index
                     .map(|i| {
                         let mut i = i;
+                        let n = state.activities.len();
                         if cycle {
-                            i += 1;
-                            i %= state.activities.len();
+                            i = (i + 1) % n;
                         } else {
-                            i = i.min(state.activities.len() - 1);
+                            i = (i + 1).min(n - 1);
                         }
                         i
                     })
@@ -316,11 +316,11 @@ impl Command {
                 let new_activity_index = activity_index
                     .map(|i| {
                         let mut i = i as isize;
+                        let n = state.activities.len();
                         if cycle {
-                            i += state.activities.len() as isize - 1;
-                            i %= state.activities.len() as isize;
+                            i = (n as isize + i - 1) % n as isize;
                         } else {
-                            i = i.max(0);
+                            i = (i - 1).max(0);
                         }
                         i as usize
                     })
