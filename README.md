@@ -218,6 +218,17 @@ If a command does not work when using keybinds, try executing the same command i
 will give you a clue into what could be wrong.
 Also try using `--force-no-daemon` flag to check if something is wrong with the running daemon.
 
+#### Hyprkool does not do anything when run using Hyprland keybinds
+depending on how you install hyprkool cli, hyprland's `exec` dispatch might have some trouble finding your hyprkool binary.
+in such cases, i recommend doing something like this:
+first run `which hyprkool` in your terminal and copy the path.
+then make the following changes to hyprland.conf
+```conf
+$hyprkool = "/absolute/path/to/hyprkool"
+
+# then set up any keybinds using this variable
+bind = $mainMod, b, exec, $hyprkool toggle-overview
+```
 ## Info commands
 Hyprkool supports some additional info commands that help you to build widgets using applications like
 [waybar](https://github.com/Alexays/Waybar) and [eww](https://github.com/elkowar/eww).
