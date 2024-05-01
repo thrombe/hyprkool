@@ -95,28 +95,20 @@
         (pkgs.writeShellScriptBin "kool-meson-configure" ''
           #!/usr/bin/env bash
           cd $PROJECT_ROOT
-          cd plugin
 
-          rm -rf ./build
-          meson setup build --reconfigure
+          make plugin-meson-configure
         '')
         (pkgs.writeShellScriptBin "kool-ninja-build" ''
           #!/usr/bin/env bash
           cd $PROJECT_ROOT
-          cd plugin
 
-          ninja -C build
+          make plugin-ninja-build
         '')
         (pkgs.writeShellScriptBin "kool-cmake-build" ''
           #!/usr/bin/env bash
           cd $PROJECT_ROOT
-          cd plugin
 
-          mkdir -p build
-
-          cd build
-          cmake ..
-          make
+          make plugin-cmake-build
         '')
         (pkgs.writeShellScriptBin "kool-test" ''
           #!/usr/bin/env bash
