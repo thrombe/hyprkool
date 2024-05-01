@@ -57,8 +57,14 @@
         pname = plugin-manifest.name;
         version = manifest.version;
 
-        src = ./plugin;
+        src = ./.;
 
+        dontUseCmakeConfigure = true;
+        dontUseMesonConfigure = true;
+        buildPhase = ''
+          make plugin
+          mv ./plugin/build/lib${pname}.so .
+        '';
         installPhase = ''
           mkdir -p $out/lib
           cp ./lib${pname}.so $out/lib/lib${pname}.so
