@@ -7,6 +7,10 @@
 #include "overview.hpp"
 #include "utils.hpp"
 
+#ifndef VERSION
+#define VERSION ""
+#endif
+
 bool overview_enabled = false;
 void handle_plugin_event(PluginEvent e) {
     switch (e) {
@@ -16,7 +20,7 @@ void handle_plugin_event(PluginEvent e) {
     }
 }
 
-void sendstr(int sockfd, const char *buf) {
+void sendstr(int sockfd, const char* buf) {
     ssize_t len = strlen(buf);
     ssize_t total_sent = 0;
     while (total_sent < len) {
@@ -167,7 +171,6 @@ void hk_render_layer(void* thisptr, SLayerSurface* layer, CMonitor* monitor, tim
         (*(origRenderLayer)(g_pRenderLayer->m_pOriginal))(thisptr, layer, monitor, time, popups);
     }
 }
-
 
 void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
     if (!overview_enabled) {
@@ -339,7 +342,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     // NOTE: throwing not allowed in another thread
     sock_thread = std::thread(safe_socket_serve);
 
-    return {"hyprkool", "hyprkool yea", "thrombe", "0.0.1"};
+    return {"hyprkool", "Grid workspaces for hyprland", "thrombe", VERSION};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
