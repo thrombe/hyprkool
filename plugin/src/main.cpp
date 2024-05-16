@@ -322,6 +322,10 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
 }
 
+// TODO: check and make sure that hyprkool cli is capatable before starting the plugin
+// TODO: when plugin starts, send an internal command to hyprkool daemon. and replace that running
+//    process with a newer instance of daemon if there is a version change.
+//    (ig have both the daemon and plugin contain commit hash)
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
 
