@@ -48,6 +48,7 @@
 
         nativeBuildInputs = with pkgs; [
           pkg-config
+          git
         ];
 
         inherit meta;

@@ -23,8 +23,11 @@ mod daemon;
 mod info;
 mod state;
 
+const VERSION: Option<&str> = option_env!("VERSION");
+const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[derive(Parser, Debug, Clone)]
-#[command(author, version, about)]
+#[command(author, version=VERSION.unwrap_or(CARGO_PKG_VERSION), about)]
 struct Cli {
     /// Specify a custom config directory
     #[arg(short, long)]

@@ -1,5 +1,6 @@
 TOML_FILE := Cargo.toml
-VERSION := $(shell awk -F '[ =]+' '/^version/{print $$2}' $(TOML_FILE))
+GIT_HASH := $(shell git rev-parse --short HEAD)
+VERSION := $(shell awk -F '[ =]+' '/^version/{print $$2}' $(TOML_FILE))-$(GIT_HASH)
 
 .PHONY: plugin plugin-meson-configure plugin-ninja-build plugin-cmake-build
 
