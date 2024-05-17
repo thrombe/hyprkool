@@ -437,7 +437,7 @@ dependencies = [
 [[package]]
 name = "hyprland"
 version = "0.3.13"
-source = "git+https://github.com/thrombe/hyprland-rs#bfa930d45e397ba7a105e1c8d3d0762badf246b0"
+source = "git+https://github.com/thrombe/hyprland-rs?branch=no_panic#49824ab560278573748c798f0046699b501dcb03"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -459,7 +459,7 @@ dependencies = [
 [[package]]
 name = "hyprland-macros"
 version = "0.3.13"
-source = "git+https://github.com/thrombe/hyprland-rs#bfa930d45e397ba7a105e1c8d3d0762badf246b0"
+source = "git+https://github.com/thrombe/hyprland-rs?branch=no_panic#49824ab560278573748c798f0046699b501dcb03"
 dependencies = [
  "quote",
  "syn 2.0.52",
