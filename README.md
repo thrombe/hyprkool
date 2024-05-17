@@ -35,7 +35,7 @@ The daemon component of Hyprkool is also optional but required for certain featu
 ```zsh
 git clone https://github.com/thrombe/hyprkool
 cd hyprkool
-cargo install --path .
+cargo install --locked --path .
 ```
 
 ## Nix
