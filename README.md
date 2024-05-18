@@ -17,12 +17,18 @@ Additionally, there's an optional C++ plugin that offers a couple of features.
 - Changing workspace animations based on movement direction.
 - Grid overview.
 
-The plugin is tested and compatible with Hyprland v0.39.0 and newer versions. While the daemon and cli should work with any reasonably new version of Hyprland.
-
 The daemon component of Hyprkool is also optional but required for certain features, including:
 - Desktop switching when the cursor touches screen edges.
 - Remembering the last workspace per activity.
 - Named focus
+
+# Version Compatibility
+The plugin is tested and compatible with the following versions of Hyprland. While the daemon and cli should work with any reasonably new version of Hyprland.
+
+| Hyprland version      | hyprkool version      |
+| ------------- | ------------- |
+| [v0.39.x](https://github.com/hyprwm/Hyprland/tree/v0.39.1) | [v0.5.x](https://github.com/thrombe/hyprkool/releases/tag/0.5.3) |
+| [v0.40.x](https://github.com/hyprwm/Hyprland/tree/v0.40.0) | [v0.6.x](https://github.com/thrombe/hyprkool/releases/tag/0.6.0) |
 
 # Installing Cli/Daemon
 <!-- enable when new version of hyprland-rs drops -->
