@@ -41,7 +41,7 @@ The plugin is tested and compatible with the following versions of Hyprland. Whi
 ```zsh
 git clone https://github.com/thrombe/hyprkool
 cd hyprkool
-cargo install --path .
+cargo install --locked --path .
 ```
 
 ## Nix
@@ -248,5 +248,5 @@ and waybar (using [`exec`](https://github.com/Alexays/Waybar/wiki/Module:-Custom
 this kind of efficient updates.
 
 ### Eww config
-Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/372a47c0a7ed3c3280e110755803ee422c7c4977/configma/tools/home/.config/eww/eww.yuck).
+Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/87593cb6ef9718475a3b57ce6a4a2a9727ba2eee/configma/tools/home/.config/eww/eww.yuck).
 
