@@ -165,8 +165,8 @@ void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
 }
 
 inline CFunctionHook* g_pRenderLayer = nullptr;
-typedef void (*origRenderLayer)(void*, SLayerSurface*, CMonitor*, timespec*, bool);
-void hk_render_layer(void* thisptr, SLayerSurface* layer, CMonitor* monitor, timespec* time, bool popups) {
+typedef void (*origRenderLayer)(void*, CLayerSurface*, CMonitor*, timespec*, bool);
+void hk_render_layer(void* thisptr, CLayerSurface* layer, CMonitor* monitor, timespec* time, bool popups) {
     if (!overview_enabled) {
         (*(origRenderLayer)(g_pRenderLayer->m_pOriginal))(thisptr, layer, monitor, time, popups);
     }
@@ -231,7 +231,7 @@ void safe_on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
 }
 
 void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
-    auto* const w = std::any_cast<CWindow*>(args);
+    auto const w = std::any_cast<PHLWINDOW>(args);
     if (!w) {
         return;
     }
@@ -290,6 +290,10 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
+std::shared_ptr<HOOK_CALLBACK_FN> render_callback;
+std::shared_ptr<HOOK_CALLBACK_FN> workspace_callback;
+std::shared_ptr<HOOK_CALLBACK_FN> activewindow_callback;
+std::shared_ptr<HOOK_CALLBACK_FN> mousebutton_callback;
 void init_hooks() {
     static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
@@ -299,10 +303,10 @@ void init_hooks() {
     g_pRenderLayer = HyprlandAPI::createFunctionHook(PHANDLE, RENDER_LAYER[0].address, (void*)&hk_render_layer);
     g_pRenderLayer->hook();
 
-    HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
-    HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", safe_on_workspace);
-    HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", on_window);
-    HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
+    render_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
+    workspace_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", safe_on_workspace);
+    activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", on_window);
+    mousebutton_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     renderWindow = funcSearch[0].address;

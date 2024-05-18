@@ -7,7 +7,7 @@
     flake-utils.url = "github:numtide/flake-utils";
 
     hyprland = {
-      url = "github:hyprwm/Hyprland/v0.39.1";
+      url = "github:hyprwm/Hyprland/v0.40.0";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
   };

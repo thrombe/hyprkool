@@ -28,13 +28,13 @@ void OverviewWorkspace::render(CBox screen, timespec* time) {
             continue;
         }
         // TODO: special and pinned windows apparently go on top of everything in that order
-        render_window(w.get(), time);
+        render_window(w, time);
     }
 
     render_top_layers(time);
 }
 
-void OverviewWorkspace::render_window(CWindow* w, timespec* time) {
+void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
 
     CBox wbox = w->getFullWindowBoundingBox();
@@ -57,7 +57,7 @@ void OverviewWorkspace::render_window(CWindow* w, timespec* time) {
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
 }
 
-void OverviewWorkspace::render_layer(SLayerSurface* layer, timespec* time) {
+void OverviewWorkspace::render_layer(PHLLS layer, timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
 
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
@@ -86,17 +86,17 @@ void OverviewWorkspace::render_hyprland_wallpaper() {
 void OverviewWorkspace::render_bg_layers(timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
     for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
-        render_layer(layer.get(), time);
+        render_layer(layer, time);
     }
     for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
-        render_layer(layer.get(), time);
+        render_layer(layer, time);
     }
 }
 
 void OverviewWorkspace::render_top_layers(timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
     for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
-        render_layer(layer.get(), time);
+        render_layer(layer, time);
     }
     // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
     //     render_layer(layer.get(), time);
@@ -213,7 +213,7 @@ void GridOverview::render() {
                 wbox.expand(-1);
                 wbox.round();
 
-                if (aw->m_szName.starts_with(ow.name) && ws->getLastFocusedWindow() == w.get()) {
+                if (aw->m_szName.starts_with(ow.name) && ws->getLastFocusedWindow().get() == w.get()) {
                     ow.render_border(wbox, g_go.focus_border, g_go.border_size);
                     did_render_focus_ws_border = true;
                 }

@@ -11,8 +11,8 @@ class OverviewWorkspace {
     float scale;
 
     void render(CBox screen, timespec* time);
-    void render_window(CWindow* w, timespec* time);
-    void render_layer(SLayerSurface* layer, timespec* time);
+    void render_window(PHLWINDOW w, timespec* time);
+    void render_layer(PHLLS layer, timespec* time);
     void render_hyprland_wallpaper();
     void render_bg_layers(timespec* time);
     void render_top_layers(timespec* time);
