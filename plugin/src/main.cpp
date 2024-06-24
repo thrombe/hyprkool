@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "overview.hpp"
+#include "src/devices/IPointer.hpp"
 #include "src/helpers/memory/SharedPtr.hpp"
 #include "utils.hpp"
 
@@ -250,17 +251,21 @@ void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
         overview_enabled = false;
     }
 }
+void safe_on_window(void* thisptr, SCallbackInfo& info, std::any args) {
+    try {
+        on_window(thisptr, info, args);
+    } catch (const std::exception& e) {
+        err_notif(e.what());
+        overview_enabled = false;
+    }
+}
 
 void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (!overview_enabled) {
         return;
     }
-    const auto e = std::any_cast<wlr_pointer_button_event*>(args);
-    if (!e) {
-        return;
-    }
-
-    if (e->button != BTN_LEFT) {
+    const auto e = std::any_cast<IPointer::SButtonEvent>(args);
+    if (e.button != BTN_LEFT) {
         return;
     }
     auto pos = g_pInputManager->getMouseCoordsInternal();
@@ -290,6 +295,14 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
         }
     }
 }
+void safe_on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
+    try {
+        on_mouse_button(thisptr, info, args);
+    } catch (const std::exception& e) {
+        err_notif(e.what());
+        overview_enabled = false;
+    }
+}
 
 CSharedPointer<HOOK_CALLBACK_FN> render_callback;
 CSharedPointer<HOOK_CALLBACK_FN> workspace_callback;
@@ -306,8 +319,8 @@ void init_hooks() {
 
     render_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
     workspace_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", safe_on_workspace);
-    activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", on_window);
-    mousebutton_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
+    activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", safe_on_window);
+    mousebutton_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", safe_on_mouse_button);
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     renderWindow = funcSearch[0].address;
