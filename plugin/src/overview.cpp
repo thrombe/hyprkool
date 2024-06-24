@@ -1,6 +1,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
+#include <wlr-layer-shell-unstable-v1.hpp>
 
 #include "overview.hpp"
 #include "utils.hpp"
@@ -85,19 +86,22 @@ void OverviewWorkspace::render_hyprland_wallpaper() {
 
 void OverviewWorkspace::render_bg_layers(timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
-    // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
-    //     render_layer(layer, time);
-    // }
-    // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
-    //     render_layer(layer, time);
-    // }
+    for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
+        auto locked = layer.lock();
+        render_layer(locked, time);
+    }
+    for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
+        auto locked = layer.lock();
+        render_layer(locked, time);
+    }
 }
 
 void OverviewWorkspace::render_top_layers(timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
-    // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
-    //     render_layer(layer, time);
-    // }
+    for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
+        auto locked = layer.lock();
+        render_layer(locked, time);
+    }
     // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
     //     render_layer(layer.get(), time);
     // }
