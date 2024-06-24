@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "overview.hpp"
+#include "src/helpers/memory/SharedPtr.hpp"
 #include "utils.hpp"
 
 #ifndef VERSION
@@ -211,7 +212,7 @@ void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
 }
 
 void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
-    auto const ws = std::any_cast<std::shared_ptr<CWorkspace>>(args);
+    auto const ws = std::any_cast<CSharedPointer<CWorkspace>>(args);
     if (ws->m_szName.ends_with(":overview")) {
         g_go = {};
         g_go.init();
@@ -290,10 +291,10 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
-std::shared_ptr<HOOK_CALLBACK_FN> render_callback;
-std::shared_ptr<HOOK_CALLBACK_FN> workspace_callback;
-std::shared_ptr<HOOK_CALLBACK_FN> activewindow_callback;
-std::shared_ptr<HOOK_CALLBACK_FN> mousebutton_callback;
+CSharedPointer<HOOK_CALLBACK_FN> render_callback;
+CSharedPointer<HOOK_CALLBACK_FN> workspace_callback;
+CSharedPointer<HOOK_CALLBACK_FN> activewindow_callback;
+CSharedPointer<HOOK_CALLBACK_FN> mousebutton_callback;
 void init_hooks() {
     static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
