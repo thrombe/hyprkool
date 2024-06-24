@@ -2,10 +2,13 @@
 name = "hyprkool"
 authors = ["thrombe"]
 # the first hash is the Hyprland commit hash, and the second is your plugin’s corresponding commit hash.
-# commit_pins = [
-#     ["3bb9c7c5cf4f2ee30bf821501499f2308d616f94", "efee74a7404495dbda70205824d6e9fc923ccdae"],
-#     ["d74607e414dcd16911089a6d4b6aeb661c880923", "efee74a7404495dbda70205824d6e9fc923ccdae"]
-# ]
+commit_pins = [
+    ["e93fbd7c4f991cb8ef03e433ccc4d43587923e15", "cba2fbccaed94aa935a72c77d859c0218002a6ed"], # v0.39.0 0.5.3
+    ["fe7b748eb668136dd0558b7c8279bfcd7ab4d759", "cba2fbccaed94aa935a72c77d859c0218002a6ed"], # v0.39.1 0.5.3
+    ["cba1ade848feac44b2eda677503900639581c3f4", "ca8e5b9c9c58d2c579d1383dbdf5919ad60c6589"], # v0.40.0 0.6.0
+    ["ea2501d4556f84d3de86a4ae2f4b22a474555b9f", "6f6915de9dff1c24a27249c9f5f5f1802be33ebf"], # v0.41.0 0.7.0
+    ["9e781040d9067c2711ec2e9f5b47b76ef70762b3", "6f6915de9dff1c24a27249c9f5f5f1802be33ebf"], # v0.41.1 0.7.0
+]
 
 [hyprkool]
 # description = ""
