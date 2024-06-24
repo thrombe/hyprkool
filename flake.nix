@@ -7,14 +7,10 @@
     flake-utils.url = "github:numtide/flake-utils";
 
     hyprland = {
-      # url = "github:hyprwm/Hyprland";
       # url = "github:hyprwm/Hyprland/v0.41.0";
-      # url = "git+https://github.com/hyprwm/Hyprland?submodules=1";
-      # url = "git+https://github.com/hyprwm/Hyprland?submodules=1&ref=v0.41.0";
       # url = "https://github.com/hyprwm/Hyprland?ref=v0.41.0";
-      # url = "git+https://github.com/hyprwm/Hyprland/?rev=ea2501d4556f84d3de86a4ae2f4b22a474555b9f&submodules=1"; # 0.41.0
+      # - [submodules still not in nix latest](https://github.com/NixOS/nix/pull/7862#issuecomment-1908577578)
       url = "git+https://github.com/hyprwm/Hyprland/?rev=9e781040d9067c2711ec2e9f5b47b76ef70762b3&submodules=1"; # 0.41.1
-      # inputs.hyprwayland-scanner.follows = "hyprwayland-scanner";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
       # type = "git";
       # submodules = true;
@@ -38,6 +34,7 @@
         ];
       };
 
+      # - [Get-flake: builtins.getFlake without the restrictions - Announcements - NixOS Discourse](https://discourse.nixos.org/t/get-flake-builtins-getflake-without-the-restrictions/17662)
       # hyprland-flake = import "${inputs.hyprland}/flake.nix";
       # hyprland-outputs = hyprland-flake.outputs {
       #   nixpkgs = inputs.nixpkgs-unstable;
