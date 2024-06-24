@@ -12,8 +12,8 @@
       # url = "git+https://github.com/hyprwm/Hyprland?submodules=1";
       # url = "git+https://github.com/hyprwm/Hyprland?submodules=1&ref=v0.41.0";
       # url = "https://github.com/hyprwm/Hyprland?ref=v0.41.0";
-      url = "git+https://github.com/hyprwm/Hyprland/?rev=ea2501d4556f84d3de86a4ae2f4b22a474555b9f&submodules=1"; # 0.41.0
-      # url = "git+https://github.com/hyprwm/Hyprland/?rev=9e781040d9067c2711ec2e9f5b47b76ef70762b3&submodules=1"; # 0.41.1
+      # url = "git+https://github.com/hyprwm/Hyprland/?rev=ea2501d4556f84d3de86a4ae2f4b22a474555b9f&submodules=1"; # 0.41.0
+      url = "git+https://github.com/hyprwm/Hyprland/?rev=9e781040d9067c2711ec2e9f5b47b76ef70762b3&submodules=1"; # 0.41.1
       # inputs.hyprwayland-scanner.follows = "hyprwayland-scanner";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
       # type = "git";
