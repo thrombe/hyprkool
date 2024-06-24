@@ -3,10 +3,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <hyprland/src/devices/IPointer.hpp>
 
 #include "overview.hpp"
-#include "src/devices/IPointer.hpp"
-#include "src/helpers/memory/SharedPtr.hpp"
 #include "utils.hpp"
 
 #ifndef VERSION
