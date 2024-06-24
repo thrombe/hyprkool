@@ -1,7 +1,10 @@
 # Hyprkool
 An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries to replicate the feel of KDE activities and grid layouts.
 
-![overview](./screenshots/overview.jpg)
+### Demo Video
+Check out our [demo video](https://youtu.be/tim5r6Yo6TA) to see Hyprkool in action:
+
+[![overview](./screenshots/overview.jpg)](https://www.youtube.com/watch?v=tim5r6Yo6TA)
 
 # Features
 - switch desktops when cursor touches screen edges
