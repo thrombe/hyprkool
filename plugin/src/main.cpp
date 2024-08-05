@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <hyprland/src/devices/IPointer.hpp>
+#include <filesystem>
 
 #include "overview.hpp"
 #include "utils.hpp"
