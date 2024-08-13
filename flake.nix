@@ -17,8 +17,8 @@
     };
   };
 
-  outputs = inputs:
-    inputs.nixpkgs.lib.attrsets.recursiveUpdate (inputs.flake-utils.lib.eachDefaultSystem (system: let
+  outputs = inputs: let
+    packages = inputs.flake-utils.lib.eachDefaultSystem (system: let
       flakePackage = flake: package: flake.packages."${system}"."${package}";
       flakeDefaultPackage = flake: flakePackage flake "default";
 
@@ -159,6 +159,11 @@
           #!/usr/bin/env bash
           cd $PROJECT_ROOT
 
+          # - [NixOS virtual machines — nix.dev documentation](https://nix.dev/tutorials/nixos/nixos-configuration-on-vm.html)
+          # - [GitHub - astro/microvm.nix: NixOS MicroVMs](https://github.com/astro/microvm.nix)
+          # - [GitHub - nix-community/nixos-generators: Collection of image builders [maintainer=@Lassulus]](https://github.com/nix-community/nixos-generators)
+          #   - [nixos-config/flake.nix · Nero-Study-Hat/nixos-config · GitHub](https://github.com/Nero-Study-Hat/nixos-config/blob/64e26b9773a0d38802358d74db691d4eb3f1e91e/flake.nix)
+
           nixos-rebuild build-vm --flake .#test
         '')
         (pkgs.writeShellScriptBin "run-vm" ''
@@ -208,7 +213,8 @@
             export CLANGD_FLAGS="--compile-commands-dir=$(pwd)/plugin --query-driver=$(which $CXX)"
           '';
         };
-    })) {
+    });
+    vm = {
       nixosConfigurations.test = let
         system = "x86_64-linux";
         username = "kool";
@@ -302,12 +308,31 @@
               };
               hardware.graphics.enable = true;
             })
-            ({...}: {
-              environment.systemPackages = with pkgs; [
-                helix
-              ];
+            ({...}: let
+              hyprkool-rs = flakePackage packages "hyprkool-rs";
+              hyprkool-plugin = flakePackage packages "hyprkool-plugin";
+            in {
+              environment.systemPackages =
+                (with pkgs; [
+                  helix
+                ])
+                ++ [
+                  hyprkool-rs
+                  hyprkool-plugin
+                  (pkgs.writeShellScriptBin "kool-launch" ''
+                    #!/usr/bin/env bash
+                    echo "hyprctl plugin load ${hyprkool-plugin}/lib/libhyprkool.so" > ~/load.sh
+                    chmod +x ~/load.sh
+                    echo "hyprctl plugin unload ${hyprkool-plugin}/lib/libhyprkool.so" > ~/unload.sh
+                    chmod +x ~/unload.sh
+
+                    Hyprland
+                  '')
+                ];
             })
           ];
         };
     };
+  in
+    inputs.nixpkgs.lib.attrsets.recursiveUpdate packages vm;
 }
