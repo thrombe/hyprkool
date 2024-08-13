@@ -30,11 +30,11 @@
       # };
       # hyprland-outputs = inputs.hyprland;
 
-      meta = with pkgs.lib; {
+      meta = {
         homepage = manifest.repository;
         description = manifest.description;
-        license = licenses.mit;
-        platforms = platforms.linux;
+        license = pkgs.lib.licenses.mit;
+        platforms = pkgs.lib.platforms.linux;
       };
       manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
       hyprkool-rs = pkgs.rustPlatform.buildRustPackage {
@@ -72,16 +72,19 @@
           mv ./lib${pname}.so $out/lib/lib${pname}.so
         '';
 
-        nativeBuildInputs = with pkgs; [
-          pkg-config
-          (flakeDefaultPackage inputs.hyprland).dev
-        ];
-        buildInputs = with pkgs;
-          [
+        nativeBuildInputs =
+          (with pkgs; [
+            pkg-config
+          ])
+          ++ [
+            (flakeDefaultPackage inputs.hyprland).dev
+          ];
+        buildInputs =
+          (with pkgs; [
             cmake
             meson
             ninja
-          ]
+          ])
           ++ (flakeDefaultPackage inputs.hyprland).buildInputs;
 
         inherit meta;
@@ -164,15 +167,16 @@
       ];
 
       env-packages = pkgs:
-        with pkgs;
-          [
-            rust-analyzer
-            rustfmt
-            clippy
-            # rustup
-            (flakePackage inputs.hyprland "hyprland-debug")
-          ]
-          ++ (custom-commands pkgs);
+        (with pkgs; [
+          rust-analyzer
+          rustfmt
+          clippy
+          # rustup
+        ])
+        ++ [
+          (flakePackage inputs.hyprland "hyprland-debug")
+        ]
+        ++ (custom-commands pkgs);
 
       stdenv = pkgs.clangStdenv;
       # stdenv = pkgs.gccStdenv;
@@ -203,133 +207,132 @@
         };
     })) {
       # nixos-rebuild build-vm --flake .#test
-      nixosConfigurations.test =
-        let
-          system = "x86_64-linux";
-          username = "kool";
-          flakePackage = flake: package: flake.packages."${system}"."${package}";
-          flakeDefaultPackage = flake: flakePackage flake "default";
+      nixosConfigurations.test = let
+        system = "x86_64-linux";
+        username = "kool";
+        flakePackage = flake: package: flake.packages."${system}"."${package}";
+        flakeDefaultPackage = flake: flakePackage flake "default";
 
-          pkgs = import inputs.nixpkgs {
-            inherit system;
-          };
-          hyprland = flakeDefaultPackage inputs.hyprland;
-        in
-          # https://discourse.nixos.org/t/eval-config-returning-called-with-unexpected-argument-when-running-nixos-rebuild/24960/2
-          inputs.nixpkgs.lib.nixosSystem {
-            inherit system;
-            specialArgs = {inherit inputs username;};
-            modules = [
-              # - [Installing NixOS with Hyprland! - by Josiah - Brown Noise](https://josiahalenbrown.substack.com/p/installing-nixos-with-hyprland)
-              ({...}: {
-                networking.hostName = username;
-                networking.networkmanager.enable = true;
-                users.users."${username}" = {
-                  isNormalUser = true;
-                  extraGroups = [
-                    "networkmanager"
-                    "wheel" # enable sudo for this user
-                  ];
-                  group = username;
-                  # - [NixOS:nixos-rebuild build-vm](https://nixos.wiki/wiki/NixOS:nixos-rebuild_build-vm)
-                  initialPassword = "${username}";
-                  # password = "";
-                };
-                security.sudo = {
-                  enable = true;
-                  wheelNeedsPassword = false;
-                };
+        pkgs = import inputs.nixpkgs {
+          inherit system;
+        };
+        hyprland = flakeDefaultPackage inputs.hyprland;
+      in
+        # https://discourse.nixos.org/t/eval-config-returning-called-with-unexpected-argument-when-running-nixos-rebuild/24960/2
+        inputs.nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = {inherit inputs username;};
+          modules = [
+            # - [Installing NixOS with Hyprland! - by Josiah - Brown Noise](https://josiahalenbrown.substack.com/p/installing-nixos-with-hyprland)
+            ({...}: {
+              networking.hostName = username;
+              networking.networkmanager.enable = true;
+              users.users."${username}" = {
+                isNormalUser = true;
+                extraGroups = [
+                  "networkmanager"
+                  "wheel" # enable sudo for this user
+                ];
+                group = username;
+                # - [NixOS:nixos-rebuild build-vm](https://nixos.wiki/wiki/NixOS:nixos-rebuild_build-vm)
+                initialPassword = "${username}";
+                # password = "";
+              };
+              security.sudo = {
+                enable = true;
+                wheelNeedsPassword = false;
+              };
 
-                users.groups."${username}" = {};
+              users.groups."${username}" = {};
 
-                programs.hyprland = {
-                  enable = true;
-                  package = hyprland;
-                };
-                environment.sessionVariables = {
-                  WLR_RENDERER_ALLOW_SOFTWARE = "1";
-                };
+              programs.hyprland = {
+                enable = true;
+                package = hyprland;
+              };
+              environment.sessionVariables = {
+                WLR_RENDERER_ALLOW_SOFTWARE = "1";
+              };
 
-                environment.systemPackages =
-                  (with pkgs; [
-                    swww
-                    xdg-desktop-portal-gtk
-                    xdg-desktop-portal-hyprland
-                    # xwayland
+              environment.systemPackages =
+                (with pkgs; [
+                  swww
+                  xdg-desktop-portal-gtk
+                  xdg-desktop-portal-hyprland
+                  # xwayland
 
-                    meson
-                    wayland-protocols
-                    wayland-utils
-                    wl-clipboard
-                    # wlroots
+                  meson
+                  wayland-protocols
+                  wayland-utils
+                  wl-clipboard
+                  # wlroots
 
-                    mesa
-                    mesa_drivers
+                  mesa
+                  mesa_drivers
 
-                    kitty
-                    glxinfo
-                  ])
-                  ++ [
-                    hyprland
-                  ];
-
-                system.stateVersion = "23.05";
-              })
-              ({modulesPath, ...}: {
-                services.spice-vdagentd.enable = true;
-                services.qemuGuest.enable = true;
-
-                boot.kernelModules = ["drm" "virtio_gpu"];
-
-                imports = [
-                  (modulesPath + "/virtualisation/qemu-vm.nix")
+                  kitty
+                  glxinfo
+                ])
+                ++ [
+                  hyprland
                 ];
 
+              system.stateVersion = "23.05";
+            })
+            ({modulesPath, ...}: {
+              services.spice-vdagentd.enable = true;
+              services.qemuGuest.enable = true;
+
+              boot.kernelModules = ["drm" "virtio_gpu"];
+
+              imports = [
+                (modulesPath + "/virtualisation/qemu-vm.nix")
+              ];
+
+              virtualisation = {
+                virtualbox.guest.enable = true;
+                vmware.guest.enable = true;
+                qemu.options = ["-device virtio-vga"];
+              };
+              virtualisation.vmVariant = {
+                # - [nixpkgs/nixos/modules/virtualisation/qemu-vm.nix at nixos-23.05 · NixOS/nixpkgs · GitHub](https://github.com/NixOS/nixpkgs/blob/nixos-23.05/nixos/modules/virtualisation/qemu-vm.nix)
                 virtualisation = {
-                  virtualbox.guest.enable = true;
-                  vmware.guest.enable = true;
-                  qemu.options = ["-device virtio-vga"];
-                };
-                virtualisation.vmVariant = {
-                  # - [nixpkgs/nixos/modules/virtualisation/qemu-vm.nix at nixos-23.05 · NixOS/nixpkgs · GitHub](https://github.com/NixOS/nixpkgs/blob/nixos-23.05/nixos/modules/virtualisation/qemu-vm.nix)
-                  virtualisation = {
-                    memorySize = 2048;
-                    cores = 2;
-                    sharedDirectories = {
-                      project_dir = {
-                        source = builtins.toString ./.;
-                        target = "/mnt/shared";
-                      };
+                  memorySize = 2048;
+                  cores = 2;
+                  sharedDirectories = {
+                    project_dir = {
+                      source = builtins.toString ./.;
+                      target = "/mnt/shared";
                     };
                   };
                 };
-                hardware.opengl.enable = true;
-              })
-              ({...}: {
-                environment.pathsToLink = ["/libexec"]; # links /libexec from derivations to /run/current-system/sw
-                services.dbus.enable = true;
-                xdg.portal = {
-                  enable = true;
-                  wlr.enable = true;
-                  extraPortals = [
-                    pkgs.xdg-desktop-portal-gtk
-                  ];
-                };
-                programs.sway.enable = true;
-                # services.xserver = {
-                #   enable = true;
-                #   displayManager.gdm.enable = true;
-                #   # - [Adding qemu-guest-agent to a nixos VM](https://discourse.nixos.org/t/adding-qemu-guest-agent-to-a-nixos-vm/5931)
-                #   videoDrivers = ["qxl" "cirrus" "vmware" "vesa" "modesetting"];
-                # };
-
-                environment.systemPackages = with pkgs; [
-                  helix
-                  glfw-wayland
-                  glfw
+              };
+              hardware.opengl.enable = true;
+            })
+            ({...}: {
+              environment.pathsToLink = ["/libexec"]; # links /libexec from derivations to /run/current-system/sw
+              services.dbus.enable = true;
+              xdg.portal = {
+                enable = true;
+                wlr.enable = true;
+                extraPortals = [
+                  pkgs.xdg-desktop-portal-gtk
                 ];
-              })
-            ];
-          };
+              };
+              programs.sway.enable = true;
+              # services.xserver = {
+              #   enable = true;
+              #   displayManager.gdm.enable = true;
+              #   # - [Adding qemu-guest-agent to a nixos VM](https://discourse.nixos.org/t/adding-qemu-guest-agent-to-a-nixos-vm/5931)
+              #   videoDrivers = ["qxl" "cirrus" "vmware" "vesa" "modesetting"];
+              # };
+
+              environment.systemPackages = with pkgs; [
+                helix
+                glfw-wayland
+                glfw
+              ];
+            })
+          ];
+        };
     };
 }
