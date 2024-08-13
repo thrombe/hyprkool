@@ -5,9 +5,12 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
+    # Hyprland v0.42.0 does not launch T-T
+    # - [m_pAqBackend couldn't start](https://github.com/hyprwm/Hyprland/issues/6967)
+    # - [Hyprland will not start - no seatd.sock file](https://github.com/hyprwm/Hyprland/issues/723)
     hyprland = {
       # - [submodules still not in nix latest](https://github.com/NixOS/nix/pull/7862#issuecomment-1908577578)
-      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.42.0";
+      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.41.2";
       inputs.nixpkgs.follows = "nixpkgs";
       type = "git";
       submodules = true;
@@ -206,7 +209,6 @@
           '';
         };
     })) {
-      # nixos-rebuild build-vm --flake .#test
       nixosConfigurations.test = let
         system = "x86_64-linux";
         username = "kool";
@@ -258,19 +260,11 @@
                   swww
                   xdg-desktop-portal-gtk
                   xdg-desktop-portal-hyprland
-                  # xwayland
 
-                  meson
                   wayland-protocols
                   wayland-utils
-                  wl-clipboard
-                  # wlroots
-
-                  mesa
-                  mesa_drivers
 
                   kitty
-                  glxinfo
                 ])
                 ++ [
                   hyprland
@@ -306,30 +300,11 @@
                   };
                 };
               };
-              hardware.opengl.enable = true;
+              hardware.graphics.enable = true;
             })
             ({...}: {
-              environment.pathsToLink = ["/libexec"]; # links /libexec from derivations to /run/current-system/sw
-              services.dbus.enable = true;
-              xdg.portal = {
-                enable = true;
-                wlr.enable = true;
-                extraPortals = [
-                  pkgs.xdg-desktop-portal-gtk
-                ];
-              };
-              programs.sway.enable = true;
-              # services.xserver = {
-              #   enable = true;
-              #   displayManager.gdm.enable = true;
-              #   # - [Adding qemu-guest-agent to a nixos VM](https://discourse.nixos.org/t/adding-qemu-guest-agent-to-a-nixos-vm/5931)
-              #   videoDrivers = ["qxl" "cirrus" "vmware" "vesa" "modesetting"];
-              # };
-
               environment.systemPackages = with pkgs; [
                 helix
-                glfw-wayland
-                glfw
               ];
             })
           ];
