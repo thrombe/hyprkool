@@ -198,8 +198,8 @@
           '';
         };
     })) {
+      # nixos-rebuild build-vm --flake .#test
       nixosConfigurations.test =
-        # nixos-rebuild build-vm --flake .#test
         let
           system = "x86_64-linux";
           username = "kool";
@@ -223,46 +223,6 @@
             inherit system;
             specialArgs = {inherit inputs username;};
             modules = [
-              # ({
-              #   config,
-              #   lib,
-              #   # pkgs,
-              #   modulesPath,
-              #   ...
-              # }: {
-              #   imports = [
-              #     (modulesPath + "/installer/scan/not-detected.nix")
-              #   ];
-              #   boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "usbhid" "sd_mod" "sr_mod" "rtsx_pci_sdmmc"];
-              #   boot.initrd.kernelModules = [];
-              #   boot.kernelModules = ["kvm-intel"];
-              #   boot.extraModulePackages = [];
-
-              #   # fileSystems."/" = {
-              #   #   device = "/dev/disk/by-uuid/ad0ef280-0c6d-40fc-a5b6-6fe14b547bd2";
-              #   #   fsType = "ext4";
-              #   # };
-
-              #   # fileSystems."/boot" = {
-              #   #   device = "/dev/disk/by-uuid/68D7-B0A1";
-              #   #   fsType = "vfat";
-              #   # };
-
-              #   swapDevices = [];
-
-              #   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
-              #   # (the default) this is the recommended approach. When using systemd-networkd it's
-              #   # still possible to use this option, but it's recommended to use it in conjunction
-              #   # with explicit per-interface declarations with `networking.interfaces.<interface>.useDHCP`.
-              #   networking.useDHCP = lib.mkDefault true;
-              #   # networking.interfaces.enp3s0.useDHCP = lib.mkDefault true;
-              #   # networking.interfaces.wlp2s0.useDHCP = lib.mkDefault true;
-
-              #   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
-              #   powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
-              #   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
-              # })
-
               # - [Installing NixOS with Hyprland! - by Josiah - Brown Noise](https://josiahalenbrown.substack.com/p/installing-nixos-with-hyprland)
               ({...}: {
                 networking.hostName = username;
@@ -291,10 +251,6 @@
                 };
                 environment.sessionVariables = {
                   WLR_RENDERER_ALLOW_SOFTWARE = "1";
-                  # WAYLAND_DISPLAY = "wayland-1";
-                  # DISPLAY = ":0";
-                  # SDL_VIDEODRIVER = "wayland";
-                  # CLUTTER_BACKEND = "wayland";
                 };
 
                 environment.systemPackages =
@@ -308,7 +264,7 @@
                     wayland-protocols
                     wayland-utils
                     wl-clipboard
-                    wlroots
+                    # wlroots
 
                     mesa
                     mesa_drivers
@@ -322,12 +278,11 @@
 
                 system.stateVersion = "23.05";
               })
-              ({ modulesPath, ...}: {
-                environment.pathsToLink = [ "/libexec" ]; # links /libexec from derivations to /run/current-system/sw 
+              ({modulesPath, ...}: {
                 services.spice-vdagentd.enable = true;
                 services.qemuGuest.enable = true;
 
-                boot.kernelModules = [ "drm" "virtio_gpu" ];
+                boot.kernelModules = ["drm" "virtio_gpu"];
 
                 imports = [
                   (modulesPath + "/virtualisation/qemu-vm.nix")
@@ -336,10 +291,7 @@
                 virtualisation = {
                   virtualbox.guest.enable = true;
                   vmware.guest.enable = true;
-                  qemu.options = [
-                    "-device virtio-vga"
-                    # "--virtio-gpu"
-                  ];
+                  qemu.options = ["-device virtio-vga"];
                 };
                 virtualisation.vmVariant = {
                   # - [nixpkgs/nixos/modules/virtualisation/qemu-vm.nix at nixos-23.05 · NixOS/nixpkgs · GitHub](https://github.com/NixOS/nixpkgs/blob/nixos-23.05/nixos/modules/virtualisation/qemu-vm.nix)
@@ -357,6 +309,7 @@
                 hardware.opengl.enable = true;
               })
               ({...}: {
+                environment.pathsToLink = ["/libexec"]; # links /libexec from derivations to /run/current-system/sw
                 services.dbus.enable = true;
                 xdg.portal = {
                   enable = true;
@@ -366,8 +319,12 @@
                   ];
                 };
                 programs.sway.enable = true;
-                # services.xserver.enable = true;
-                # services.xserver.displayManager.gdm.enable = true;
+                # services.xserver = {
+                #   enable = true;
+                #   displayManager.gdm.enable = true;
+                #   # - [Adding qemu-guest-agent to a nixos VM](https://discourse.nixos.org/t/adding-qemu-guest-agent-to-a-nixos-vm/5931)
+                #   videoDrivers = ["qxl" "cirrus" "vmware" "vesa" "modesetting"];
+                # };
 
                 environment.systemPackages = with pkgs; [
                   helix
@@ -375,178 +332,6 @@
                   glfw
                 ];
               })
-              # ({...}: {
-              #   # Use the systemd-boot EFI boot loader.
-              #   boot.loader.systemd-boot.enable = true;
-              #   boot.loader.efi.canTouchEfiVariables = true;
-
-              #   networking.hostName = "nixos"; # Define your hostname.
-              #   # Pick only one of the below networking options.
-              #   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-              #   networking.networkmanager.enable = true; # Easiest to use and most distros use this by default.
-
-              #   # Set your time zone.
-              #   # time.timeZone = "Europe/Amsterdam";
-
-              #   # Select internationalisation properties.
-              #   # i18n.defaultLocale = "en_US.UTF-8";
-              #   # console = {
-              #   #   font = "Lat2-Terminus16";
-              #   #   keyMap = "us";
-              #   #   useXkbConfig = true; # use xkbOptions in tty.
-              #   # };
-
-              #   environment.pathsToLink = ["/libexec"]; # links /libexec from derivations to /run/current-system/sw
-              #   services.spice-vdagentd.enable = true;
-              #   services.qemuGuest.enable = true;
-              #   services.xserver = {
-              #     enable = true;
-
-              #     desktopManager = {
-              #       xterm.enable = true;
-              #     };
-
-              #     displayManager = {
-              #       # defaultSession = "none+${hyprland.name}";
-              #       # autoLogin = {
-              #       #   user = "${wm.name}";
-              #       #   enable = true;
-              #       # };
-              #     };
-
-              #     # qemuGuest.enable = true;
-              #     # - [Adding qemu-guest-agent to a nixos VM](https://discourse.nixos.org/t/adding-qemu-guest-agent-to-a-nixos-vm/5931)
-              #     videoDrivers = ["qxl" "cirrus" "vmware" "vesa" "modesetting"];
-
-              #     windowManager.session = [
-              #       {
-              #         name = hyprland.name;
-              #         start = ''
-              #           mkdir -p ~/.config
-
-              #           # rm -rf ~/.config/picom
-              #           # ln -s /mnt/shared/target/picom ~/.config/picom
-              #           # ${pkgs.picom}/bin/picom &
-
-              #           rm -rf ~/.config/alacritty
-              #           ln -s /mnt/shared/target/alacritty  ~/.config/alacritty
-
-              #           wm_bin="/mnt/shared/target/debug/${hyprland.name}"
-              #           wm_log="/mnt/shared/target/log.log"
-              #           wm_prev_log="/mnt/shared/target/prev.log"
-              #           stat=${pkgs.coreutils}/bin/stat
-
-              #           wm_command() {
-              #             mv "$wm_log" "$wm_prev_log"
-              #             "$wm_bin" &> "$wm_log"
-              #           }
-
-              #           is_command_running() {
-              #               pgrep -f "$wm_bin" > /dev/null
-              #           }
-
-              #           wm_command
-
-              #           last_modified=$(stat -c %Y "$wm_bin")
-
-              #           while true; do
-              #             sleep 1
-
-              #             if ! is_command_running; then
-              #               wm_command
-              #               continue
-              #             fi
-
-              #             current_modified=$(stat -c %Y "$wm_bin")
-
-              #             if [ $last_modified -ne $current_modified ]; then
-              #               echo "restarting"
-              #               pkill "${hyprland.name}"
-              #               wm_command
-              #               last_modified="$current_modified"
-              #             fi
-              #           done
-              #         '';
-              #       }
-              #     ];
-              #   };
-
-              #   virtualisation = {
-              #     virtualbox.guest.enable = true;
-              #     vmware.guest.enable = true;
-              #   };
-              #   virtualisation.vmVariant = {
-              #     # - [nixpkgs/nixos/modules/virtualisation/qemu-vm.nix at nixos-23.05 · NixOS/nixpkgs · GitHub](https://github.com/NixOS/nixpkgs/blob/nixos-23.05/nixos/modules/virtualisation/qemu-vm.nix)
-              #     virtualisation = {
-              #       # qemu.guestAgent.enable = true;
-              #       # virtualisation.vmware.guest.enable = true;
-              #       # virtualisation.virtualbox.guest.enable = true;
-              #       memorySize = 2048;
-              #       cores = 2;
-              #       sharedDirectories = {
-              #         project_dir = {
-              #           source = builtins.toString hyprland.src;
-              #           target = "/mnt/shared";
-              #         };
-              #       };
-              #     };
-              #   };
-              #   # environment.variables = {
-              #   #   # NOTE: does not work. this env var should be set up in the host. not in the vm :P
-              #   #   # - https://github.com/NixOS/nixpkgs/issues/59219#issuecomment-481571469
-              #   #   # QEMU_OPTS = "-enable-kvm -display sdl";
-              #   #   # QEMU_OPTS = "-enable-kvm -display sdl -virtfs local,path=/home/issac/0Git/wmmw,mount_tag=host0,security_model=passthrough,id=host0";
-              #   # };
-
-              #   # Configure keymap in X11
-              #   services.xserver.layout = "us";
-
-              #   # Enable sound.
-              #   sound.enable = true;
-              #   hardware.pulseaudio.enable = true;
-
-              #   # Enable touchpad support (enabled default in most desktopManager).
-              #   services.xserver.libinput.enable = true;
-
-              #   users.users."${hyprland.name}" = {
-              #     isNormalUser = true;
-              #     # - [NixOS:nixos-rebuild build-vm](https://nixos.wiki/wiki/NixOS:nixos-rebuild_build-vm)
-              #     initialPassword = "${hyprland.name}";
-              #     extraGroups = ["wheel"]; # Enable ‘sudo’ for the user.
-              #     # packages = with pkgs; [];
-              #   };
-
-              #   programs.hyprland = {
-              #     enable = true;
-              #     xwayland.enable = true;
-              #   };
-
-              #   environment.systemPackages = with pkgs; [
-              #     alacritty
-              #     polybarFull
-              #     dmenu-rs
-              #     helix
-              #     git
-              #     rofi
-              #     feh
-              #     zsh
-              #     bluez
-              #     dunst
-              #     lf
-              #     du-dust
-              #     file
-              #     patchelf
-              #     vim
-              #     wget
-              #     mount
-
-              #     xorg.xmodmap
-
-              #     glxinfo
-              #   ];
-
-              #   system.stateVersion = "23.05";
-              # })
             ];
           };
     };
