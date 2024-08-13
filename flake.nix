@@ -2,14 +2,13 @@
   description = "yaaaaaaaaaaaaaaaaaaaaa";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.05";
-    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
     hyprland = {
       # - [submodules still not in nix latest](https://github.com/NixOS/nix/pull/7862#issuecomment-1908577578)
       url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.42.0";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      inputs.nixpkgs.follows = "nixpkgs";
       type = "git";
       submodules = true;
     };
@@ -22,13 +21,6 @@
 
       pkgs = import inputs.nixpkgs {
         inherit system;
-        overlays = [
-          (final: prev: {
-            unstable = import inputs.nixpkgs-unstable {
-              inherit system;
-            };
-          })
-        ];
       };
 
       # - [Get-flake: builtins.getFlake without the restrictions - Announcements - NixOS Discourse](https://discourse.nixos.org/t/get-flake-builtins-getflake-without-the-restrictions/17662)
@@ -45,7 +37,7 @@
         platforms = platforms.linux;
       };
       manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
-      hyprkool-rs = pkgs.unstable.rustPlatform.buildRustPackage {
+      hyprkool-rs = pkgs.rustPlatform.buildRustPackage {
         pname = manifest.name;
         version = manifest.version;
         cargoLock = {
@@ -162,17 +154,17 @@
       env-packages = pkgs:
         with pkgs;
           [
-            unstable.rust-analyzer
-            unstable.rustfmt
-            unstable.clippy
-            # unstable.rustup
+            rust-analyzer
+            rustfmt
+            clippy
+            # rustup
             (flakePackage inputs.hyprland "hyprland-debug")
           ]
           ++ (custom-commands pkgs);
 
-      stdenv = pkgs.unstable.clangStdenv;
-      # stdenv = pkgs.unstable.gccStdenv;
-      # stdenv = pkgs.unstable.gcc13Stdenv;
+      stdenv = pkgs.clangStdenv;
+      # stdenv = pkgs.gccStdenv;
+      # stdenv = pkgs.gcc13Stdenv;
     in {
       packages = {
         default = hyprkool-rs;
@@ -208,13 +200,6 @@
 
           pkgs = import inputs.nixpkgs {
             inherit system;
-            overlays = [
-              (final: prev: {
-                unstable = import inputs.nixpkgs-unstable {
-                  inherit system;
-                };
-              })
-            ];
           };
           hyprland = flakeDefaultPackage inputs.hyprland;
         in
