@@ -149,6 +149,18 @@
           kool-cmake-build
           kool-reload
         '')
+        (pkgs.writeShellScriptBin "build-vm" ''
+          #!/usr/bin/env bash
+          cd $PROJECT_ROOT
+
+          nixos-rebuild build-vm --flake .#test
+        '')
+        (pkgs.writeShellScriptBin "run-vm" ''
+          #!/usr/bin/env bash
+          cd $PROJECT_ROOT
+
+          ./result/bin/run-kool-vm $@
+        '')
       ];
 
       env-packages = pkgs:
