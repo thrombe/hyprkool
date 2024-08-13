@@ -7,15 +7,11 @@
     flake-utils.url = "github:numtide/flake-utils";
 
     hyprland = {
-      # url = "github:hyprwm/Hyprland/v0.41.2";
-      # url = "https://github.com/hyprwm/Hyprland?ref=v0.41.2";
-      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.41.2";
       # - [submodules still not in nix latest](https://github.com/NixOS/nix/pull/7862#issuecomment-1908577578)
-      # url = "git+https://github.com/hyprwm/Hyprland/?rev=2b520571e897be2a0e88c8692da607b062000038&submodules=1"; # 0.41.2
+      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.42.0";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
       type = "git";
       submodules = true;
-      # flake = false;
     };
   };
 
