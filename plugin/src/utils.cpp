@@ -52,13 +52,18 @@ void throw_err_notif(std::string msg) {
 KoolConfig g_KoolConfig;
 
 void _set_config() {
+    // default values
+    g_KoolConfig.workspaces_x = 2;
+    g_KoolConfig.workspaces_y = 2;
+
     const auto HOME = getenv("HOME");
     auto path = std::string(HOME) + "/.config/hypr/hyprkool.toml";
+    if (!std::filesystem::exists(path)) {
+        return;
+    }
     auto manifest = toml::parse_file(path);
     auto workspaces = manifest["workspaces"].as_array();
     if (!workspaces) {
-        g_KoolConfig.workspaces_x = 2;
-        g_KoolConfig.workspaces_y = 2;
         return;
     }
     auto ws = *workspaces;
