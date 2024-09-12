@@ -61,6 +61,7 @@ void _set_config() {
     if (!std::filesystem::exists(path)) {
         return;
     }
+    // NOTE: parsing error is nicely displayed in the notif area
     auto manifest = toml::parse_file(path);
     auto workspaces = manifest["workspaces"].as_array();
     if (!workspaces) {

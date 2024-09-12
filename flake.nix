@@ -5,12 +5,9 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
-    # Hyprland v0.42.0 does not launch T-T
-    # - [m_pAqBackend couldn't start](https://github.com/hyprwm/Hyprland/issues/6967)
-    # - [Hyprland will not start - no seatd.sock file](https://github.com/hyprwm/Hyprland/issues/723)
     hyprland = {
       # - [submodules still not in nix latest](https://github.com/NixOS/nix/pull/7862#issuecomment-1908577578)
-      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.41.2";
+      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.43.0";
       inputs.nixpkgs.follows = "nixpkgs";
       type = "git";
       submodules = true;
