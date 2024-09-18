@@ -19,7 +19,7 @@ anyhow = "1.0.81"
 clap = { version = "4.5.3", features = ["derive"] }
 dirs = "5.0.1"
 # TODO: unsafe-impl should not be used. hyprkool needs a rewrite T-T
-hyprland = { git = "https://github.com/thrombe/hyprland-rs", branch = "v0.6_pin", features = ["unsafe-impl"] }
+hyprland = { git = "https://github.com/thrombe/hyprland-rs", branch = "v0.7_pin", features = ["unsafe-impl"] }
 linicon = "2.3.0"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.114"

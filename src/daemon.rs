@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use hyprland::{
-    data::{Client, CursorPosition, Monitor, Workspace},
+    data::{Client, CursorPosition, FullscreenMode, Monitor, Workspace},
     dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
     event_listener::EventListener,
     shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
@@ -122,7 +122,8 @@ impl MouseDaemon {
             };
 
             if let Some(window) = Client::get_active_async().await? {
-                if window.fullscreen && window.fullscreen_mode == 0 {
+                // should i use window.fullscreen or window.fullscreen_client ?
+                if window.fullscreen as u8 > FullscreenMode::Maximized as u8 {
                     continue;
                 }
             }

@@ -324,8 +324,8 @@ dependencies = [
 
 [[package]]
 name = "hyprland"
-version = "0.4.0-alpha.2"
-source = "git+https://github.com/thrombe/hyprland-rs?branch=v0.6_pin#96f8f768aa7e203e0c3239f01943a7ce9ee35247"
+version = "0.4.0-alpha.3"
+source = "git+https://github.com/thrombe/hyprland-rs?branch=v0.7_pin#7bbcd08360dce6977b0bfee708339f0250ccae68"
 dependencies = [
  "ahash 0.8.11",
  "derive_more",
@@ -342,8 +342,8 @@ dependencies = [
 
 [[package]]
 name = "hyprland-macros"
-version = "0.4.0-alpha.2"
-source = "git+https://github.com/thrombe/hyprland-rs?branch=v0.6_pin#96f8f768aa7e203e0c3239f01943a7ce9ee35247"
+version = "0.4.0-alpha.3"
+source = "git+https://github.com/thrombe/hyprland-rs?branch=v0.7_pin#7bbcd08360dce6977b0bfee708339f0250ccae68"
 dependencies = [
  "quote",
  "syn",
