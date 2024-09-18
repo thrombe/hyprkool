@@ -43,7 +43,7 @@
         cargoLock = {
           lockFile = ./Cargo.lock;
           outputHashes = {
-            "hyprland-0.4.0-alpha.2" = "sha256-7GRj0vxsQ4ORp0hSBAorjFYvWDy+edGU2IL3DhFDLvQ=";
+            "hyprland-0.4.0-alpha.3" = "sha256-dUJOOQeh1iBC3W2DWmaHdbs9DnufeZzMOdrrhPFHf70=";
           };
         };
         src = pkgs.lib.cleanSource ./.;
