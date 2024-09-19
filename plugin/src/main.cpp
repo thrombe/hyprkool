@@ -1,4 +1,5 @@
 
+#include <exception>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -7,6 +8,9 @@
 #include <filesystem>
 
 #include "overview.hpp"
+#include "src/Compositor.hpp"
+#include "src/SharedDefs.hpp"
+#include "src/macros.hpp"
 #include "utils.hpp"
 
 #ifndef VERSION
@@ -187,6 +191,10 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
             // CBox box = CBox(50, 50, 100.0, 100.0);
             // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
             overview_enabled = false;
+            g_go = {};
+
+            // NOTE: call these only after g_pHyprOpenGL->m_RenderData.pMonitor is set
+            g_go.init();
             g_go.render();
             overview_enabled = true;
             // TODO: damaging entire window fixes the weird areas - but is inefficient
@@ -214,9 +222,8 @@ void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
 
 void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto const ws = std::any_cast<CSharedPointer<CWorkspace>>(args);
-    if (ws->m_szName.ends_with(":overview")) {
-        g_go = {};
-        g_go.init();
+    auto m = g_pCompositor->getMonitorFromCursor();
+    if (std::regex_match(ws->m_szName, overview_pattern)) {
         overview_enabled = true;
     } else {
         overview_enabled = false;
