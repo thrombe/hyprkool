@@ -17,7 +17,9 @@
 #define VERSION ""
 #endif
 
+// TODO: overview only works on one monitor. overview resets when workspace changes on any monitor
 bool overview_enabled = false;
+MONITORID overview_monitor_id = MONITOR_INVALID;
 void handle_plugin_event(PluginEvent e) {
     switch (e) {
         default: {
@@ -225,6 +227,7 @@ void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto m = g_pCompositor->getMonitorFromCursor();
     if (std::regex_match(ws->m_szName, overview_pattern)) {
         overview_enabled = true;
+        overview_monitor_id = m->ID;
     } else {
         overview_enabled = false;
     }
@@ -239,38 +242,48 @@ void safe_on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
-void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
-    auto const w = std::any_cast<PHLWINDOW>(args);
-    if (!w) {
-        return;
-    }
-    if (overview_enabled) {
-        auto m = g_pCompositor->getMonitorFromCursor();
-        auto& w = m->activeWorkspace;
-        if (std::regex_match(w->m_szName, overview_pattern)) {
-            auto ss = std::istringstream(w->m_szName);
-            std::string activity;
-            std::string pos;
-            std::getline(ss, activity, ':');
-            std::getline(ss, pos, ':');
-            HyprlandAPI::invokeHyprctlCommand("dispatch", "movetoworkspace name:" + activity + ":" + pos);
-        }
-        overview_enabled = false;
-    }
-}
-void safe_on_window(void* thisptr, SCallbackInfo& info, std::any args) {
-    try {
-        on_window(thisptr, info, args);
-    } catch (const std::exception& e) {
-        err_notif(e.what());
-        overview_enabled = false;
-    }
-}
+// void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
+//     auto const w = std::any_cast<PHLWINDOW>(args);
+//     if (!w) {
+//         return;
+//     }
+//     if (!overview_enabled) {
+//         return;
+//     }
+
+//     auto m = g_pCompositor->getMonitorFromCursor();
+//     auto& ws = m->activeWorkspace;
+//     if (std::regex_match(ws->m_szName, overview_pattern)) {
+//         auto ss = std::istringstream(ws->m_szName);
+//         std::string activity;
+//         std::string pos;
+//         std::getline(ss, activity, ':');
+//         std::getline(ss, pos, ':');
+//         HyprlandAPI::invokeHyprctlCommand("dispatch", "movetoworkspace name:" + activity + ":" + pos);
+//     }
+//     overview_enabled = false;
+// }
+// void safe_on_window(void* thisptr, SCallbackInfo& info, std::any args) {
+//     try {
+//         on_window(thisptr, info, args);
+//     } catch (const std::exception& e) {
+//         err_notif(e.what());
+//         overview_enabled = false;
+//     }
+// }
 
 void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (!overview_enabled) {
         return;
     }
+    auto mc = g_pCompositor->getMonitorFromCursor();
+    if (!mc) {
+        return;
+    }
+    if (mc->ID != overview_monitor_id) {
+        return;
+    }
+
     const auto e = std::any_cast<IPointer::SButtonEvent>(args);
     if (e.button != BTN_LEFT) {
         return;
@@ -326,7 +339,7 @@ void init_hooks() {
 
     render_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
     workspace_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", safe_on_workspace);
-    activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", safe_on_window);
+    // activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", safe_on_window);
     mousebutton_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", safe_on_mouse_button);
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
