@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::{cmp::Ordering, collections::HashMap, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
 use hyprland::{
@@ -12,7 +12,11 @@ use tokio::{
     net::UnixStream,
 };
 
-use crate::{config::{Config, MultiMonitorStrategy}, daemon::get_plugin_socket_path, Message};
+use crate::{
+    config::{Config, MultiMonitorStrategy},
+    daemon::get_plugin_socket_path,
+    Message,
+};
 
 #[derive(Debug)]
 pub struct State {
@@ -124,6 +128,16 @@ impl State {
             MultiMonitorStrategy::SeparateWorkspaces => {
                 // get x y for current monitor and switch all monitors to x y w
                 let monitors = Monitors::get_async().await?;
+                let mut monitors = monitors.into_iter().collect::<Vec<_>>();
+                monitors.sort_by(|a, b| {
+                    if a.focused {
+                        Ordering::Greater
+                    } else if b.focused {
+                        Ordering::Less
+                    } else {
+                        Ordering::Equal
+                    }
+                });
                 for m in monitors.iter() {
                     let name = name.replace("$", &m.id.to_string());
                     Dispatch::call_async(DispatchType::Custom(
@@ -132,28 +146,44 @@ impl State {
                     ))
                     .await?;
                 }
-            },
+            }
             MultiMonitorStrategy::SharedWorkspacesSyncActivities => {
+                // switch all monitors to their corresponding ws in activity mentioned in their current ws
                 let name = name.replace("$", "");
 
-                // switch all monitors to their corresponding ws in activity mentioned in their current ws
                 let monitors = Monitors::get_async().await?;
-                let ai = self.get_activity_index(&name).expect("name passed here is expected to be valid");
+                let mut monitors = monitors.into_iter().collect::<Vec<_>>();
+                monitors.sort_by(|a, b| {
+                    if a.focused {
+                        Ordering::Greater
+                    } else if b.focused {
+                        Ordering::Less
+                    } else {
+                        Ordering::Equal
+                    }
+                });
+
+                let ai = self
+                    .get_activity_index(&name)
+                    .expect("name passed here is expected to be valid");
                 let oa = self.activities[ai].clone();
 
                 let mut free = self.workspaces[ai].clone();
                 free.reverse();
-                
+
                 for m in monitors.iter() {
                     let mut name = name.clone();
-                    match self.get_activity_index(&m.name).map(|i| self.activities[i].clone()) {
+                    match self
+                        .get_activity_index(&m.name)
+                        .map(|i| self.activities[i].clone())
+                    {
                         Some(a) => {
                             name = name.replace(&oa, &a);
                             free.retain(|w| w != &name);
-                        },
+                        }
                         None => {
                             name = free.pop().context("no free workspace left in current activity. you might have more monitors than workspaces.")?;
-                        },
+                        }
                     }
                     Dispatch::call_async(DispatchType::Custom(
                         "focusworkspaceoncurrentmonitor",
@@ -161,7 +191,7 @@ impl State {
                     ))
                     .await?;
                 }
-            },
+            }
             MultiMonitorStrategy::SharedWorkspacesUnsyncActivities => {
                 let name = name.replace("$", "");
                 Dispatch::call_async(DispatchType::Custom(
@@ -169,7 +199,7 @@ impl State {
                     &format!("special:{}", name),
                 ))
                 .await?;
-            },
+            }
         }
         if let Some(w) = window {
             let cursor = CursorPosition::get_async().await?;
