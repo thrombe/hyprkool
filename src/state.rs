@@ -1,8 +1,8 @@
 use std::{collections::HashMap, time::Duration};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use hyprland::{
-    data::{Client, CursorPosition, Workspace},
+    data::{Client, CursorPosition, Monitors, Workspace},
     dispatch::{Dispatch, DispatchType, WindowIdentifier, WorkspaceIdentifierWithSpecial},
     shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
 };
@@ -12,7 +12,7 @@ use tokio::{
     net::UnixStream,
 };
 
-use crate::{config::Config, daemon::get_plugin_socket_path, Message};
+use crate::{config::{Config, MultiMonitorStrategy}, daemon::get_plugin_socket_path, Message};
 
 #[derive(Debug)]
 pub struct State {
@@ -47,7 +47,7 @@ impl State {
             .map(|name| {
                 raw_workspaces
                     .clone()
-                    .map(|(x, y)| format!("{name}:({x} {y})"))
+                    .map(|(x, y)| format!("{name}:({x} {y}$)"))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -113,33 +113,71 @@ impl State {
         if move_window {
             window = Client::get_active_async().await?;
         }
-        match window {
-            Some(w) => {
-                let cursor = CursorPosition::get_async().await?;
+        if window.is_some() {
+            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+                WorkspaceIdentifierWithSpecial::Name(name),
+                None,
+            ))
+            .await?;
+        }
+        match self.config.multi_monitor_strategy {
+            MultiMonitorStrategy::SeparateWorkspaces => {
+                // get x y for current monitor and switch all monitors to x y w
+                let monitors = Monitors::get_async().await?;
+                for m in monitors.iter() {
+                    let name = name.replace("$", &m.id.to_string());
+                    Dispatch::call_async(DispatchType::Custom(
+                        "moveworkspacetomonitor",
+                        &format!("special:{} {}", name, m.id),
+                    ))
+                    .await?;
+                }
+            },
+            MultiMonitorStrategy::SharedWorkspacesSyncActivities => {
+                let name = name.replace("$", "");
 
-                Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
-                    WorkspaceIdentifierWithSpecial::Name(name),
-                    None,
-                ))
-                .await?;
+                // switch all monitors to their corresponding ws in activity mentioned in their current ws
+                let monitors = Monitors::get_async().await?;
+                let ai = self.get_activity_index(&name).expect("name passed here is expected to be valid");
+                let oa = self.activities[ai].clone();
+
+                let mut free = self.workspaces[ai].clone();
+                free.reverse();
+                
+                for m in monitors.iter() {
+                    let mut name = name.clone();
+                    match self.get_activity_index(&m.name).map(|i| self.activities[i].clone()) {
+                        Some(a) => {
+                            name = name.replace(&oa, &a);
+                            free.retain(|w| w != &name);
+                        },
+                        None => {
+                            name = free.pop().context("no free workspace left in current activity. you might have more monitors than workspaces.")?;
+                        },
+                    }
+                    Dispatch::call_async(DispatchType::Custom(
+                        "focusworkspaceoncurrentmonitor",
+                        &format!("special:{}", name),
+                    ))
+                    .await?;
+                }
+            },
+            MultiMonitorStrategy::SharedWorkspacesUnsyncActivities => {
+                let name = name.replace("$", "");
                 Dispatch::call_async(DispatchType::Custom(
                     "focusworkspaceoncurrentmonitor",
                     &format!("special:{}", name),
                 ))
                 .await?;
-                Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
-                    w.address,
-                )))
-                .await?;
-                Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
-            }
-            None => {
-                Dispatch::call_async(DispatchType::Custom(
-                    "focusworkspaceoncurrentmonitor",
-                    &format!("special:{}", name),
-                ))
-                .await?;
-            }
+            },
+        }
+        if let Some(w) = window {
+            let cursor = CursorPosition::get_async().await?;
+            Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
+                w.address,
+            )))
+            .await?;
+            Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
         }
         res
     }

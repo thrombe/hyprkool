@@ -49,11 +49,22 @@ impl Default for MouseConfig {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+pub enum MultiMonitorStrategy {
+    // all monitors share a common hyprkool workspace (same x y) acitvity:(x y w)
+    SeparateWorkspaces,
+
+    // activity:(x y)
+    SharedWorkspacesSyncActivities, // m1:a1w1 m2:a2w2 -> m1:a2w1 m2:a2w2 when switching activities
+    SharedWorkspacesUnsyncActivities,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub activities: Vec<String>,
     /// number of workspaces in x and y dimensions
     pub workspaces: (u32, u32),
+    pub multi_monitor_strategy: MultiMonitorStrategy,
     pub named_focii: HashMap<String, String>,
     pub daemon: DaemonConfig,
 }
@@ -62,6 +73,7 @@ impl Default for Config {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
+            multi_monitor_strategy: MultiMonitorStrategy::SharedWorkspacesUnsyncActivities,
             named_focii: Default::default(),
             daemon: Default::default(),
         }

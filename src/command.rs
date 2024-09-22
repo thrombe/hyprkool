@@ -277,7 +277,7 @@ impl Command {
                         .expect("just checked this");
                     name.push_str(id);
                 } else {
-                    name.push_str("(1 1)");
+                    name = state.workspaces[0][0].clone().replace(&state.activities[0], &name);
                 };
                 state
                     .move_to_workspace(&name, move_window, Animation::Fade)
