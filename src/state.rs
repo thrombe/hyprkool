@@ -2,9 +2,9 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::{anyhow, Result};
 use hyprland::{
-    data::Workspace,
-    dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial},
-    shared::HyprDataActive,
+    data::{Client, CursorPosition, Workspace},
+    dispatch::{Dispatch, DispatchType, WindowIdentifier, WorkspaceIdentifierWithSpecial},
+    shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
 };
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -108,17 +108,38 @@ impl State {
     ) -> Result<()> {
         let res = set_workspace_anim(anim).await;
         let name = name.as_ref();
+
+        let mut window = None;
         if move_window {
-            Dispatch::call_async(DispatchType::MoveToWorkspace(
-                WorkspaceIdentifierWithSpecial::Name(name),
-                None,
-            ))
-            .await?;
-        } else {
-            Dispatch::call_async(DispatchType::Workspace(
-                WorkspaceIdentifierWithSpecial::Name(name),
-            ))
-            .await?;
+            window = Client::get_active_async().await?;
+        }
+        match window {
+            Some(w) => {
+                let cursor = CursorPosition::get_async().await?;
+
+                Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+                    WorkspaceIdentifierWithSpecial::Name(name),
+                    None,
+                ))
+                .await?;
+                Dispatch::call_async(DispatchType::Custom(
+                    "focusworkspaceoncurrentmonitor",
+                    &format!("special:{}", name),
+                ))
+                .await?;
+                Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
+                    w.address,
+                )))
+                .await?;
+                Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
+            }
+            None => {
+                Dispatch::call_async(DispatchType::Custom(
+                    "focusworkspaceoncurrentmonitor",
+                    &format!("special:{}", name),
+                ))
+                .await?;
+            }
         }
         res
     }
