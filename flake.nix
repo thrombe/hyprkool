@@ -277,6 +277,7 @@
             })
             ({modulesPath, ...}: {
               services.spice-vdagentd.enable = true;
+              services.spice-autorandr.enable = true;
               services.qemuGuest.enable = true;
 
               boot.kernelModules = ["drm" "virtio_gpu"];
@@ -287,8 +288,9 @@
 
               virtualisation = {
                 virtualbox.guest.enable = true;
+                spiceUSBRedirection.enable = true;
                 vmware.guest.enable = true;
-                qemu.options = ["-device virtio-vga"];
+                qemu.options = ['' --enable-kvm -cpu host -device virtio-vga,max_outputs=2 ''];
               };
               virtualisation.vmVariant = {
                 # - [nixpkgs/nixos/modules/virtualisation/qemu-vm.nix at nixos-23.05 · NixOS/nixpkgs · GitHub](https://github.com/NixOS/nixpkgs/blob/nixos-23.05/nixos/modules/virtualisation/qemu-vm.nix)
