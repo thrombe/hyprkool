@@ -124,6 +124,7 @@ impl State {
             ))
             .await?;
         }
+        dbg!(&self.config.multi_monitor_strategy);
         match self.config.multi_monitor_strategy {
             MultiMonitorStrategy::SeparateWorkspaces => {
                 // get x y for current monitor and switch all monitors to x y w
@@ -140,9 +141,10 @@ impl State {
                 });
                 for m in monitors.iter() {
                     let name = name.replace("$", &m.id.to_string());
+                    dbg!(&name, &m);
                     Dispatch::call_async(DispatchType::Custom(
                         "moveworkspacetomonitor",
-                        &format!("special:{} {}", name, m.id),
+                        &format!("name:{} {}", name, m.id),
                     ))
                     .await?;
                 }
@@ -185,20 +187,52 @@ impl State {
                             name = free.pop().context("no free workspace left in current activity. you might have more monitors than workspaces.")?;
                         }
                     }
+                    dbg!(&name, &m);
                     Dispatch::call_async(DispatchType::Custom(
                         "focusworkspaceoncurrentmonitor",
-                        &format!("special:{}", name),
+                        &format!("name:{}", name),
                     ))
                     .await?;
                 }
             }
             MultiMonitorStrategy::SharedWorkspacesUnsyncActivities => {
                 let name = name.replace("$", "");
-                Dispatch::call_async(DispatchType::Custom(
-                    "focusworkspaceoncurrentmonitor",
-                    &format!("special:{}", name),
-                ))
-                .await?;
+                let monitors = Monitors::get_async().await?;
+                let mut monitors = monitors.into_iter().collect::<Vec<_>>();
+                monitors.sort_by(|a, b| {
+                    if a.focused {
+                        Ordering::Greater
+                    } else if b.focused {
+                        Ordering::Less
+                    } else {
+                        Ordering::Equal
+                    }
+                });
+
+                let ai = self
+                    .get_activity_index(&name)
+                    .expect("name passed here is expected to be valid");
+                let mut free = self.workspaces[ai].iter().map(|w| w.replace("$", "")).collect::<Vec<_>>();
+                free.retain(|w| w != &name);
+
+                for m in monitors.iter() {
+                    if m.focused {
+                        dbg!(&name, &m);
+                        Dispatch::call_async(DispatchType::Custom(
+                            "focusworkspaceoncurrentmonitor",
+                            &format!("name:{}", name),
+                        ))
+                        .await?;
+                    } else if self.get_activity_index(&m.active_workspace.name).is_none() {
+                        let name = free.pop().context("no free workspace left in current activity.")?;
+                        dbg!(&name, &m);
+                        Dispatch::call_async(DispatchType::Custom(
+                            "moveworkspacetomonitor",
+                            &format!("name:{} {}", name, &m.id),
+                        ))
+                        .await?;
+                    }
+                }
             }
         }
         if let Some(w) = window {
