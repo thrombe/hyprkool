@@ -18,6 +18,8 @@ use crate::{
     Message,
 };
 
+use regex::Regex;
+
 #[derive(Debug)]
 pub struct State {
     pub focused: HashMap<String, String>,
@@ -51,7 +53,7 @@ impl State {
             .map(|name| {
                 raw_workspaces
                     .clone()
-                    .map(|(x, y)| format!("{name}:({x} {y}$)"))
+                    .map(|(x, y)| format!("{name}:({x} {y} $)"))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -75,6 +77,12 @@ impl State {
     pub fn get_indices(&self, name: impl AsRef<str>) -> Option<(usize, Option<usize>)> {
         let name = name.as_ref();
         let activity_index = self.get_activity_index(name)?;
+		// w comes with a $ in the monitor position
+		// name comes with a number there
+		// so to compare them, we have to... do something about that
+		let re = Regex::new(r"\d+\)").unwrap();
+		let binding = re.replace(&name,"$)");
+		let name = binding.as_ref();
         let workspace_index = self.workspaces[activity_index]
             .iter()
             .position(|w| w == name);
@@ -113,39 +121,50 @@ impl State {
         let res = set_workspace_anim(anim).await;
         let name = name.as_ref();
 
-        let mut window = None;
+		let monitors = Monitors::get_async().await?;
+		let mut monitors = monitors.into_iter().collect::<Vec<_>>();
+		monitors.sort_by(|a, b| {
+			if a.focused {
+				Ordering::Greater
+			} else if b.focused {
+				Ordering::Less
+			} else {
+				Ordering::Equal
+			}
+		});
+
         if move_window {
-            window = Client::get_active_async().await?;
+			for m in monitors.iter() {
+				if m.focused {
+					let wsname = name.replace("$", &m.id.to_string());
+					Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+					    WorkspaceIdentifierWithSpecial::Name(&wsname),
+					    None,
+					))
+					.await?;
+				}
+			}
         }
-        if window.is_some() {
-            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
-                WorkspaceIdentifierWithSpecial::Name(name),
-                None,
-            ))
-            .await?;
-        }
+		let re = Regex::new(r"\d+\)").unwrap();
+		let name = re.replace(name,"$)");
         match self.config.multi_monitor_strategy {
             MultiMonitorStrategy::SeparateWorkspaces => {
                 // get x y for current monitor and switch all monitors to x y w
-                let monitors = Monitors::get_async().await?;
-                let mut monitors = monitors.into_iter().collect::<Vec<_>>();
-                monitors.sort_by(|a, b| {
-                    if a.focused {
-                        Ordering::Greater
-                    } else if b.focused {
-                        Ordering::Less
-                    } else {
-                        Ordering::Equal
-                    }
-                });
+				let cursor = CursorPosition::get_async().await?;
                 for m in monitors.iter() {
-                    let name = name.replace("$", &m.id.to_string());
+                    let wsname = name.replace("$", &m.id.to_string());
                     Dispatch::call_async(DispatchType::Custom(
-                        "moveworkspacetomonitor",
-                        &format!("special:{} {}", name, m.id),
+                        "focusmonitor",
+                        &m.id.to_string()
+                    ))
+                    .await?;
+                    Dispatch::call_async(DispatchType::Custom(
+                        "workspace",
+                        &format!("name:{}", wsname)
                     ))
                     .await?;
                 }
+				Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
             }
             MultiMonitorStrategy::SharedWorkspacesSyncActivities => {
                 // switch all monitors to their corresponding ws in activity mentioned in their current ws
@@ -200,14 +219,6 @@ impl State {
                 ))
                 .await?;
             }
-        }
-        if let Some(w) = window {
-            let cursor = CursorPosition::get_async().await?;
-            Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
-                w.address,
-            )))
-            .await?;
-            Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
         }
         res
     }
