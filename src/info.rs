@@ -22,6 +22,8 @@ use tokio::{
 
 use crate::{Message, State};
 
+use regex::Regex;
+
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum InfoCommand {
     WaybarActivityStatus,
@@ -450,6 +452,11 @@ impl InfoCommand {
                                 focused: false,
                                 named_focus: focii.get(w).cloned().unwrap_or_default(),
                             };
+                            // w comes with a $ in the monitor position
+                            // name comes with a number there
+                            // so to compare them, we have to... do something about that
+                       		let re = Regex::new(r"\d+\)").unwrap();
+							let name = re.replace(&name,"$)");
                             if w == &name {
                                 ws.focused = true;
                             }
