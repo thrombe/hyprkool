@@ -4,6 +4,7 @@
 #include <wlr-layer-shell-unstable-v1.hpp>
 
 #include "overview.hpp"
+#include "src/render/OpenGL.hpp"
 #include "utils.hpp"
 
 std::regex overview_pattern("([a-zA-Z0-9-_]+):\\(([0-9]+) ([0-9]+)\\):overview");
@@ -13,7 +14,7 @@ const char* FOCUS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:focus_border_co
 const char* GAP_SIZE_CONFIG_NAME = "plugin:hyprkool:overview:workspace_gap_size";
 const char* BORDER_SIZE_CONFIG_NAME = "general:border_size";
 
-void OverviewWorkspace::render(CBox screen, timespec* time) {
+void OverviewWorkspace::render(timespec* time) {
     render_hyprland_wallpaper();
     render_bg_layers(time);
 
@@ -36,7 +37,7 @@ void OverviewWorkspace::render(CBox screen, timespec* time) {
 }
 
 void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
-    auto m = g_pCompositor->getMonitorFromCursor();
+    auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
 
     CBox wbox = w->getFullWindowBoundingBox();
 
@@ -59,7 +60,7 @@ void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
 }
 
 void OverviewWorkspace::render_layer(PHLLS layer, timespec* time) {
-    auto m = g_pCompositor->getMonitorFromCursor();
+    auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
 
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
@@ -85,7 +86,7 @@ void OverviewWorkspace::render_hyprland_wallpaper() {
 }
 
 void OverviewWorkspace::render_bg_layers(timespec* time) {
-    auto m = g_pCompositor->getMonitorFromCursor();
+    auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
     for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
         auto locked = layer.lock();
         render_layer(locked, time);
@@ -97,7 +98,7 @@ void OverviewWorkspace::render_bg_layers(timespec* time) {
 }
 
 void OverviewWorkspace::render_top_layers(timespec* time) {
-    auto m = g_pCompositor->getMonitorFromCursor();
+    auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
     for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
         auto locked = layer.lock();
         render_layer(locked, time);
@@ -130,7 +131,11 @@ void GridOverview::init() {
     focus_border = CColor(**FOCUS_BORDER);
     border_size = **BORDER_SIZE;
 
-    auto m = g_pCompositor->getMonitorFromCursor();
+    auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
+    if (!m) {
+        throw_err_notif("rendering broke. m_RenderData.pMonitor is null");
+        return;
+    }
     auto& w = m->activeWorkspace;
 
     if (std::regex_match(w->m_szName, overview_pattern)) {
@@ -192,10 +197,11 @@ void GridOverview::render() {
     g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
 
     for (auto& ow : workspaces) {
-        ow.render(box, &time);
+        ow.render(&time);
     }
 
-    auto m = g_pCompositor->getMonitorFromCursor();
+    auto mc = g_pCompositor->getMonitorFromCursor();
+    auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
     auto& aw = m->activeWorkspace;
 
     auto mouse = g_pInputManager->getMouseCoordsInternal();
@@ -203,6 +209,9 @@ void GridOverview::render() {
     bool did_render_cursor_ws_border = false;
     for (auto& w : g_pCompositor->m_vWindows) {
         if (!w) {
+            continue;
+        }
+        if (!w->visibleOnMonitor(m)) {
             continue;
         }
         auto& ws = w->m_pWorkspace;
@@ -222,6 +231,10 @@ void GridOverview::render() {
                     did_render_focus_ws_border = true;
                 }
 
+                // if monitor with cursor is the one being rendered
+                if (mc && m->ID != mc->ID) {
+                    continue;
+                }
                 if (wbox.containsPoint(mouse)) {
                     ow.render_border(wbox, g_go.cursor_ws_border, g_go.border_size);
                     did_render_cursor_ws_border = true;

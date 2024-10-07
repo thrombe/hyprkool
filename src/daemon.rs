@@ -19,20 +19,20 @@ pub struct MouseDaemon {
     state: Arc<Mutex<State>>,
 
     // TODO: multi monitor setup yaaaaaaaaaaaaaaaaa
-    monitor: Monitor,
+    // monitor: Monitor,
 
     config: Config,
 }
 impl MouseDaemon {
     pub async fn new(state: Arc<Mutex<State>>) -> Result<Self> {
         let s = state.lock().await;
-        let monitor = Monitor::get_active_async().await?;
+        // let monitor = Monitor::get_active_async().await?;
         let config = s.config.clone();
         drop(s);
 
         Ok(Self {
             config,
-            monitor,
+            // monitor,
             state,
         })
     }
@@ -80,23 +80,24 @@ impl MouseDaemon {
             let nx = self.config.workspaces.0 as usize;
             let ny = self.config.workspaces.1 as usize;
             let mut c = CursorPosition::get_async().await?;
+            let monitor = Monitor::get_active_async().await?;
             let mut y = 0;
             let mut x = 0;
             let mut anim = Animation::Fade;
             if c.x <= w {
                 x += nx - 1;
-                c.x = self.monitor.width as i64 - m;
+                c.x = monitor.width as i64 - m;
                 anim = Animation::Left;
-            } else if c.x >= self.monitor.width as i64 - 1 - w {
+            } else if c.x >= monitor.width as i64 - 1 - w {
                 x += 1;
                 c.x = m;
                 anim = Animation::Right;
             }
             if c.y <= w {
                 y += ny - 1;
-                c.y = self.monitor.height as i64 - m;
+                c.y = monitor.height as i64 - m;
                 anim = Animation::Up;
-            } else if c.y >= self.monitor.height as i64 - 1 - w {
+            } else if c.y >= monitor.height as i64 - 1 - w {
                 y += 1;
                 c.y = m;
                 anim = Animation::Down;
