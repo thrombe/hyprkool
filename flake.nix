@@ -7,7 +7,7 @@
 
     hyprland = {
       # - [submodules still not in nix latest](https://github.com/NixOS/nix/pull/7862#issuecomment-1908577578)
-      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.43.0";
+      url = "https://github.com/hyprwm/Hyprland?ref=refs/tags/v0.44.0";
       inputs.nixpkgs.follows = "nixpkgs";
       type = "git";
       submodules = true;
