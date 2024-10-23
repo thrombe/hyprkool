@@ -61,7 +61,7 @@
         inherit meta;
       };
       plugin-manifest = (pkgs.lib.importTOML ./hyprpm.toml).repository;
-      hyprkool-plugin = pkgs.callPackage ({ pkgs, hyprland }: stdenv.mkDerivation rec {
+      hyprkool-plugin = pkgs.lib.makeOverridable pkgs.callPackage ({ pkgs, hyprland }: stdenv.mkDerivation rec {
         pname = plugin-manifest.name;
         version = manifest.version;
 
