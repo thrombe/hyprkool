@@ -22,6 +22,11 @@
 
       pkgs = import inputs.nixpkgs {
         inherit system;
+        overlays = [
+          (self: super: {
+            hyprland = flakeDefaultPackage inputs.hyprland;
+          })
+        ];
       };
 
       # - [Get-flake: builtins.getFlake without the restrictions - Announcements - NixOS Discourse](https://discourse.nixos.org/t/get-flake-builtins-getflake-without-the-restrictions/17662)
@@ -56,7 +61,7 @@
         inherit meta;
       };
       plugin-manifest = (pkgs.lib.importTOML ./hyprpm.toml).repository;
-      hyprkool-plugin = stdenv.mkDerivation rec {
+      hyprkool-plugin = pkgs.callPackage ({ pkgs, hyprland }: stdenv.mkDerivation rec {
         pname = plugin-manifest.name;
         version = manifest.version;
 
@@ -78,7 +83,7 @@
             pkg-config
           ])
           ++ [
-            (flakeDefaultPackage inputs.hyprland).dev
+            hyprland.dev
           ];
         buildInputs =
           (with pkgs; [
@@ -86,10 +91,10 @@
             meson
             ninja
           ])
-          ++ (flakeDefaultPackage inputs.hyprland).buildInputs;
+          ++ hyprland.buildInputs;
 
         inherit meta;
-      };
+      }) {};
 
       fhs = pkgs.buildFHSEnv {
         name = "fhs-shell";
