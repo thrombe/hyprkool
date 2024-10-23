@@ -86,6 +86,8 @@ hyprpm enable hyprkool
 ### Nix
 It is recommended that you are using Hyprland flake.
 You can install hyprkool plugin just like other [hyprland plugins](https://github.com/hyprwm/hyprland-plugins?tab=readme-ov-file#nix).
+
+#### with hyprland as a flake
 ```nix
 {
   inputs = {
@@ -106,6 +108,34 @@ You can install hyprkool plugin just like other [hyprland plugins](https://githu
         # ...
         plugins = [
           inputs.hyprkool.packages.${pkgs.system}.hyprkool-plugin
+          # ...
+        ];
+      };
+    }
+
+  # ...
+}
+```
+
+#### with hyprland from nixpkgs
+```nix
+{
+  inputs = {
+    # ...
+    hyprkool.url = "github:thrombe/hyprkool";
+  };
+
+  # ...
+
+    # then, you can use the plugins with the Home Manager module
+    {inputs, pkgs, ...}: {
+      wayland.windowManager.hyprland = {
+        enable = true;
+        # ...
+        plugins = [
+          inputs.hyprkool.packages.${pkgs.system}.hyprkool-plugin.override {
+            hyprland = pkgs.hyprland;
+          }
           # ...
         ];
       };
