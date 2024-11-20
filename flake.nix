@@ -7,7 +7,7 @@
 
     hyprland = {
       url = "https://github.com/hyprwm/Hyprland";
-      ref = "refs/tags/v0.44.1";
+      ref = "refs/tags/v0.45.2";
       type = "git";
       submodules = true;
 
@@ -185,7 +185,8 @@
           # rustup
         ])
         ++ [
-          (flakePackage inputs.hyprland "hyprland-debug")
+          # (flakePackage inputs.hyprland "hyprland-debug")
+          (flakePackage inputs.hyprland "hyprland")
         ]
         ++ (custom-commands pkgs);
 
