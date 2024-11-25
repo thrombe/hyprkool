@@ -287,3 +287,12 @@ this kind of efficient updates.
 ### Eww config
 Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/87593cb6ef9718475a3b57ce6a4a2a9727ba2eee/configma/tools/home/.config/eww/eww.yuck).
 
+# Contributing
+Contributions are welcome to Hyprkool! If you're fixing a bug, adding a feature, or making an improvement, feel free to submit a pull request (PR) to help enhance the plugin.
+
+### Guidelines:
+- Target the `dev` branch for all contributions. This ensures the `master` branch remains stable while we continue to work on new features and fixes.
+- Provide clear reproduction steps when fixing a bug. If you're resolving an issue, include detailed instructions on how to reproduce the bug so the fix can be verified.
+- Test your changes. If you're introducing new functionality or addressing a bug, ensure everything works as expected.
+
+If you have any questions or concerns about your contribution, don't hesitate to open an issue or ask for feedback.
