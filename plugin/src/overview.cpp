@@ -141,8 +141,8 @@ void GridOverview::init() {
     }
     box.x = m->vecPosition.x;
     box.y = m->vecPosition.y;
-    box.w = m->vecSize.x;
-    box.h = m->vecSize.y;
+    box.w = m->vecSize.x * m->scale;
+    box.h = m->vecSize.y * m->scale;
 
     float gap_size = **GAP_SIZE/2.0;
     float dx = g_KoolConfig.workspaces_x;
@@ -198,7 +198,7 @@ void GridOverview::render() {
     auto m = g_pCompositor->getMonitorFromCursor();
     auto& aw = m->activeWorkspace;
 
-    auto mouse = g_pInputManager->getMouseCoordsInternal();
+    auto mouse = g_pInputManager->getMouseCoordsInternal() * m->scale;
     bool did_render_focus_ws_border = false;
     bool did_render_cursor_ws_border = false;
     for (auto& w : g_pCompositor->m_vWindows) {
@@ -212,7 +212,7 @@ void GridOverview::render() {
         for (auto& ow : workspaces) {
             if (ws->m_szName == ow.name) {
                 CBox wbox = w->getFullWindowBoundingBox();
-                wbox.scale(ow.scale);
+                wbox.scale(ow.scale * m->scale);
                 wbox.translate(ow.box.pos());
                 wbox.expand(-1);
                 wbox.round();

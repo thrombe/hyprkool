@@ -268,7 +268,7 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (e.button != BTN_LEFT) {
         return;
     }
-    auto pos = g_pInputManager->getMouseCoordsInternal();
+    auto pos = g_pInputManager->getMouseCoordsInternal() * g_pCompositor->getMonitorFromCursor()->scale;
     for (auto& w : g_pCompositor->m_vWindows) {
         auto wbox = w->getFullWindowBoundingBox();
         for (auto& ow : g_go.workspaces) {
