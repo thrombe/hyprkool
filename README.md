@@ -12,6 +12,7 @@ Check out our [demo video](https://youtu.be/tim5r6Yo6TA) to see Hyprkool in acti
 - info commands for tools like eww and waybar
 - an optional daemon for stateful commands
 - a grid overview
+- [harpoon](https://github.com/ThePrimeagen/harpoon) but for hyprland workspaces
 
 # Usage
 Hyprkool consists of two main components: a CLI + daemon written in Rust and a C++ plugin.
@@ -23,7 +24,7 @@ Additionally, there's an optional C++ plugin that offers a couple of features.
 The daemon component of Hyprkool is also optional but required for certain features, including:
 - Desktop switching when the cursor touches screen edges.
 - Remembering the last workspace per activity.
-- Named focus
+- Harpoon for workspaces (named-focus)
 
 # Version Compatibility
 The plugin is tested and compatible with the following versions of Hyprland. While the daemon and cli should work with any reasonably new version of Hyprland.
@@ -223,6 +224,7 @@ bind = $mainMod, SPACE, exec, hyprkool toggle-special-workspace -n minimized
 # move active window to special workspace without switching to that workspace
 bind = $mainMod, s, exec, hyprkool toggle-special-workspace -n minimized -w -s
 
+# harpoon for workspaces (previously known as named-focus :P)
 # switch to named focus
 bind = $mainMod, 1, exec, hyprkool switch-named-focus -n 1
 bind = $mainMod, 2, exec, hyprkool switch-named-focus -n 2
