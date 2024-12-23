@@ -16,7 +16,7 @@ class OverviewWorkspace {
     void render_hyprland_wallpaper();
     void render_bg_layers(timespec* time);
     void render_top_layers(timespec* time);
-    void render_border(CBox bbox, CColor col, int border_size);
+    void render_border(CBox bbox, CHyprColor col, int border_size);
 };
 
 class GridOverview {
@@ -24,8 +24,8 @@ class GridOverview {
     std::string activity;
     std::vector<OverviewWorkspace> workspaces;
     CBox box;
-    CColor cursor_ws_border;
-    CColor focus_border;
+    CHyprColor cursor_ws_border;
+    CHyprColor focus_border;
     int border_size;
 
     void init();

@@ -185,7 +185,7 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
         } break;
         case eRenderStage::RENDER_PRE_WINDOWS: {
             // CBox box = CBox(50, 50, 100.0, 100.0);
-            // g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.3, 0.0, 0.0, 0.3));
+            // g_pHyprOpenGL->renderRectWithBlur(&box, CHyprColor(0.3, 0.0, 0.0, 0.3));
             overview_enabled = false;
             g_go.render();
             overview_enabled = true;
