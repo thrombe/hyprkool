@@ -7,7 +7,7 @@
 
     hyprland = {
       url = "https://github.com/hyprwm/Hyprland";
-      ref = "refs/tags/v0.45.2";
+      ref = "refs/tags/v0.46.0";
       type = "git";
       submodules = true;
 
@@ -61,6 +61,7 @@
         inherit meta;
       };
       plugin-manifest = (pkgs.lib.importTOML ./hyprpm.toml).repository;
+      # - [Override Design Pattern - Nix Pills](https://nixos.org/guides/nix-pills/14-override-design-pattern)
       hyprkool-plugin = pkgs.lib.makeOverridable pkgs.callPackage ({ pkgs, hyprland }: stdenv.mkDerivation rec {
         pname = plugin-manifest.name;
         version = manifest.version;
