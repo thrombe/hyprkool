@@ -339,97 +339,76 @@ impl State {
         Ok(())
     }
 
+    async fn move_focused_window_to_raw(&mut self, ws: &str) -> Result<()> {
+        if let Some(_window) = Client::get_active_async().await? {
+            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+                WorkspaceIdentifierWithSpecial::Name(ws),
+                None,
+            ))
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn move_towards(&mut self, x: i32, y: i32, cycle: bool, move_window: bool) -> Result<()> {
+        let (a, ws) = self
+            .focused_monitor_mut()
+            .current()
+            .context("not in a hyprkool workspace")?;
+        let ws = self.moved_ws(ws, cycle, x, y);
+        if move_window {
+            self.move_focused_window_to(&a, ws).await?;
+        }
+        self.focused_monitor_mut().move_to(a, ws).await?;
+        Ok(())
+    }
+
+    async fn cycle_activity(&mut self, z: i32, cycle: bool, move_window: bool) -> Result<()> {
+        let m = self.focused_monitor_mut();
+        let (a, ws) = if let Some((a, ws)) = m.current() {
+            let mut ai = m.get_activity_index(&a).context("unknown activity name")? as isize;
+            ai += z as isize;
+            if cycle {
+                ai += self.config.activities.len() as isize;
+                ai %= self.config.activities.len() as isize;
+            } else {
+                ai = ai.min(self.config.activities.len() as isize - 1).max(0);
+            }
+            let a = self.config.activities[ai as usize].clone();
+            (a, ws)
+        } else {
+            let a = self.config.activities[0].clone();
+            let ws = KWorkspace { x: 1, y: 1 };
+            (a, ws)
+        };
+        if move_window {
+            self.move_focused_window_to(&a, ws).await?;
+        }
+        self.focused_monitor_mut().move_to(a, ws).await?;
+        Ok(())
+    }
+
     async fn execute(&mut self, command: Command) -> Result<()> {
         match command {
             Command::MoveRight { cycle, move_window } => {
-                let (a, ws) = self
-                    .focused_monitor_mut()
-                    .current()
-                    .context("not in a hyprkool workspace")?;
-                let ws = self.moved_ws(ws, cycle, 1, 0);
-                if move_window {
-                    self.move_focused_window_to(&a, ws).await?;
-                }
-                self.focused_monitor_mut().move_to(a, ws).await?;
+                self.move_towards(1, 0, cycle, move_window).await?;
             }
             Command::MoveLeft { cycle, move_window } => {
-                let (a, ws) = self
-                    .focused_monitor_mut()
-                    .current()
-                    .context("not in a hyprkool workspace")?;
-                let ws = self.moved_ws(ws, cycle, -1, 0);
-                if move_window {
-                    self.move_focused_window_to(&a, ws).await?;
-                }
-                self.focused_monitor_mut().move_to(a, ws).await?;
+                self.move_towards(-1, 0, cycle, move_window).await?;
             }
             Command::MoveUp { cycle, move_window } => {
-                let (a, ws) = self
-                    .focused_monitor_mut()
-                    .current()
-                    .context("not in a hyprkool workspace")?;
-                let ws = self.moved_ws(ws, cycle, 0, -1);
-                if move_window {
-                    self.move_focused_window_to(&a, ws).await?;
-                }
-                self.focused_monitor_mut().move_to(a, ws).await?;
+                self.move_towards(0, -1, cycle, move_window).await?;
             }
             Command::MoveDown { cycle, move_window } => {
-                let (a, ws) = self
-                    .focused_monitor_mut()
-                    .current()
-                    .context("not in a hyprkool workspace")?;
-                let ws = self.moved_ws(ws, cycle, 0, 1);
-                if move_window {
-                    self.move_focused_window_to(&a, ws).await?;
-                }
-                self.focused_monitor_mut().move_to(a, ws).await?;
+                self.move_towards(0, 1, cycle, move_window).await?;
             }
             Command::NextActivity { cycle, move_window } => {
-                let m = self.focused_monitor_mut();
-                let (a, ws) = if let Some((a, ws)) = m.current() {
-                    let mut ai = m.get_activity_index(&a).context("unknown activity name")?;
-                    ai += 1;
-                    if cycle {
-                        ai %= self.config.activities.len();
-                    } else {
-                        ai = ai.min(self.config.activities.len() - 1);
-                    }
-                    let a = self.config.activities[ai].clone();
-                    (a, ws)
-                } else {
-                    let a = self.config.activities[0].clone();
-                    let ws = KWorkspace { x: 1, y: 1 };
-                    (a, ws)
-                };
-                if move_window {
-                    self.move_focused_window_to(&a, ws).await?;
-                }
-                self.focused_monitor_mut().move_to(a, ws).await?;
-            },
+                self.cycle_activity(1, cycle, move_window).await?;
+            }
             Command::PrevActivity { cycle, move_window } => {
-                let m = self.focused_monitor_mut();
-                let (a, ws) = if let Some((a, ws)) = m.current() {
-                    let mut ai = m.get_activity_index(&a).context("unknown activity name")?;
-                    if cycle {
-                        ai += self.config.activities.len() - 1;
-                        ai %= self.config.activities.len();
-                    } else {
-                        ai -= 1;
-                        ai = ai.max(0);
-                    }
-                    let a = self.config.activities[ai].clone();
-                    (a, ws)
-                } else {
-                    let a = self.config.activities[0].clone();
-                    let ws = KWorkspace { x: 1, y: 1 };
-                    (a, ws)
-                };
-                if move_window {
-                    self.move_focused_window_to(&a, ws).await?;
-                }
-                self.focused_monitor_mut().move_to(a, ws).await?;
-            },
+                self.cycle_activity(-1, cycle, move_window).await?;
+            }
             Command::Daemon {
                 move_to_hyprkool_activity,
             } => todo!(),
