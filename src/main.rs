@@ -287,7 +287,319 @@ impl Cli {
         Ok(config)
     }
 }
+
+struct State {
+    config: Config,
+    monitors: Vec<KMonitor>,
+}
+
+impl State {
+    async fn new(config: Config) -> Result<Self> {
+        let m = Monitors::get_async().await?;
+        let monitors = m
+            .into_iter()
+            .map(|m| KMonitor::new(m, &config.activities))
+            .collect();
+
+        Ok(Self { config, monitors })
+    }
+
+    fn moved_ws(&self, ws: KWorkspace, wrap: bool, x: i32, y: i32) -> KWorkspace {
+        if wrap {
+            KWorkspace {
+                x: ((ws.x - 1 + x + self.config.workspaces.0).max(0) % self.config.workspaces.0)
+                    + 1,
+                y: ((ws.y - 1 + y + self.config.workspaces.1).max(0) % self.config.workspaces.1)
+                    + 1,
+            }
+        } else {
+            KWorkspace {
+                x: self.config.workspaces.0.min(ws.x + x).max(1),
+                y: self.config.workspaces.1.min(ws.y + y).max(1),
+            }
+        }
+    }
+
+    fn focused_monitor_mut(&mut self) -> &mut KMonitor {
+        self.monitors
+            .iter_mut()
+            .find(|m| m.monitor.focused)
+            .expect("no monitor focused")
+    }
+
+    async fn move_focused_window_to(&mut self, activity: &str, ws: KWorkspace) -> Result<()> {
+        if let Some(_window) = Client::get_active_async().await? {
+            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+                WorkspaceIdentifierWithSpecial::Name(&ws.name(activity, false)),
+                None,
+            ))
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn execute(&mut self, command: Command) -> Result<()> {
+        match command {
+            Command::MoveRight { cycle, move_window } => {
+                let (a, ws) = self
+                    .focused_monitor_mut()
+                    .current()
+                    .context("not in a hyprkool workspace")?;
+                let ws = self.moved_ws(ws, cycle, 1, 0);
+                if move_window {
+                    self.move_focused_window_to(&a, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a, ws).await?;
+            }
+            Command::MoveLeft { cycle, move_window } => {
+                let (a, ws) = self
+                    .focused_monitor_mut()
+                    .current()
+                    .context("not in a hyprkool workspace")?;
+                let ws = self.moved_ws(ws, cycle, -1, 0);
+                if move_window {
+                    self.move_focused_window_to(&a, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a, ws).await?;
+            }
+            Command::MoveUp { cycle, move_window } => {
+                let (a, ws) = self
+                    .focused_monitor_mut()
+                    .current()
+                    .context("not in a hyprkool workspace")?;
+                let ws = self.moved_ws(ws, cycle, 0, -1);
+                if move_window {
+                    self.move_focused_window_to(&a, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a, ws).await?;
+            }
+            Command::MoveDown { cycle, move_window } => {
+                let (a, ws) = self
+                    .focused_monitor_mut()
+                    .current()
+                    .context("not in a hyprkool workspace")?;
+                let ws = self.moved_ws(ws, cycle, 0, 1);
+                if move_window {
+                    self.move_focused_window_to(&a, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a, ws).await?;
+            }
+            Command::NextActivity { cycle, move_window } => {
+                let m = self.focused_monitor_mut();
+                let (a, ws) = if let Some((a, ws)) = m.current() {
+                    let mut ai = m.get_activity_index(&a).context("unknown activity name")?;
+                    ai += 1;
+                    if cycle {
+                        ai %= self.config.activities.len();
+                    } else {
+                        ai = ai.min(self.config.activities.len() - 1);
+                    }
+                    let a = self.config.activities[ai].clone();
+                    (a, ws)
+                } else {
+                    let a = self.config.activities[0].clone();
+                    let ws = KWorkspace { x: 1, y: 1 };
+                    (a, ws)
+                };
+                if move_window {
+                    self.move_focused_window_to(&a, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a, ws).await?;
+            },
+            Command::PrevActivity { cycle, move_window } => {
+                let m = self.focused_monitor_mut();
+                let (a, ws) = if let Some((a, ws)) = m.current() {
+                    let mut ai = m.get_activity_index(&a).context("unknown activity name")?;
+                    if cycle {
+                        ai += self.config.activities.len() - 1;
+                        ai %= self.config.activities.len();
+                    } else {
+                        ai -= 1;
+                        ai = ai.max(0);
+                    }
+                    let a = self.config.activities[ai].clone();
+                    (a, ws)
+                } else {
+                    let a = self.config.activities[0].clone();
+                    let ws = KWorkspace { x: 1, y: 1 };
+                    (a, ws)
+                };
+                if move_window {
+                    self.move_focused_window_to(&a, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a, ws).await?;
+            },
+            Command::Daemon {
+                move_to_hyprkool_activity,
+            } => todo!(),
+            Command::DaemonQuit => todo!(),
+            Command::Info { command, monitor } => todo!(),
+            Command::FocusWindow { address } => todo!(),
+            Command::SwitchToActivity { name, move_window } => todo!(),
+            Command::SwitchToWorkspaceInActivity { name, move_window } => todo!(),
+            Command::SwitchToWorkspace { name, move_window } => todo!(),
+            Command::ToggleSpecialWorkspace {
+                name,
+                move_window,
+                silent,
+            } => todo!(),
+            Command::SwitchNamedFocus { name, move_window } => todo!(),
+            Command::SetNamedFocus { name } => todo!(),
+            Command::ToggleOverview => todo!(),
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+struct KMonitor {
+    monitor: Monitor,
+    activities: Vec<KActivity>,
+}
+
+impl KMonitor {
+    fn new(m: Monitor, activities: &[String]) -> Self {
+        KMonitor {
+            activities: activities
+                .iter()
+                .map(|a| KActivity {
+                    name: a.into(),
+                    last_workspace: None,
+                })
+                .collect(),
+            monitor: m,
+        }
+    }
+
+    fn get_activity_index(&self, name: &str) -> Option<usize> {
+        self.activities.iter().position(|a| a.name == name)
+    }
+}
+
+// assuming self is updated with most recent info
+impl KMonitor {
+    fn current(&self) -> Option<(String, KWorkspace)> {
+        let a = KActivity::from_ws_name(&self.monitor.active_workspace.name)?;
+        let w = KWorkspace::from_ws_name(&self.monitor.active_workspace.name)?;
+        Some((a.name, w))
+    }
+
+    async fn move_to_activity(&mut self, activity: String) -> Result<()> {
+        if let Some((a, ws)) = self.current() {
+            if let Some(ai) = self.get_activity_index(&a) {
+                self.activities[ai].last_workspace = Some(ws);
+            }
+
+            self.move_to(activity, ws).await?;
+        } else {
+            self.move_to(activity, KWorkspace { x: 1, y: 1 }).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn toggle_overview(&mut self) -> Result<()> {
+        let (a, ws) = self.current().context("not in a hyprkool activity")?;
+
+        if !self.monitor.focused {
+            Dispatch::call_async(DispatchType::Custom(
+                "focusmonitor",
+                &format!("{}", self.monitor.id),
+            ))
+            .await?;
+        }
+
+        if self.monitor.active_workspace.name.ends_with(":overview") {
+            Dispatch::call_async(DispatchType::Custom(
+                "focusworkspaceoncurrentmonitor",
+                &format!("name:{}", ws.name(&a, false)),
+            ))
+            .await?;
+        } else {
+            Dispatch::call_async(DispatchType::Custom(
+                "focusworkspaceoncurrentmonitor",
+                &format!("name:{}", ws.name(&a, true)),
+            ))
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn move_to(&mut self, activity: String, new_ws: KWorkspace) -> Result<()> {
+        if let Some((a, ws)) = self.current() {
+            if let Some(ai) = self.get_activity_index(&a) {
+                self.activities[ai].last_workspace = Some(ws);
+            }
+        }
+
+        if !self.monitor.focused {
+            Dispatch::call_async(DispatchType::Custom(
+                "focusmonitor",
+                &format!("{}", self.monitor.id),
+            ))
+            .await?;
+        }
+        Dispatch::call_async(DispatchType::Custom(
+            "focusworkspaceoncurrentmonitor",
+            &format!("name:{}", new_ws.name(&activity, false)),
+        ))
+        .await?;
+
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+struct KActivity {
+    name: String,
+    last_workspace: Option<KWorkspace>,
+}
+
+impl KActivity {
+    fn from_ws_name(name: &str) -> Option<Self> {
+        let (a, _ws) = name.split_once(':')?;
+        Some(KActivity {
+            name: a.to_owned(),
+            last_workspace: None,
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct KWorkspace {
+    x: i32,
+    y: i32,
+}
+
+impl KWorkspace {
+    fn from_ws_name(name: &str) -> Option<Self> {
+        let (_a, ws) = name.split_once(':')?;
+        let ws = ws.split(':').next().unwrap_or(ws);
+        let ws = ws.strip_prefix("(")?.strip_suffix(")")?;
+        let (x, y) = ws.split_once(' ')?;
+        let x: i32 = x.parse().ok()?;
+        let y: i32 = y.parse().ok()?;
+        Some(KWorkspace { x, y })
+    }
+
+    fn name(&self, activity: &str, overview: bool) -> String {
+        if overview {
+            format!("{}:({} {}):overview", activity, self.x, self.y)
+        } else {
+            format!("{}:({} {})", activity, self.x, self.y)
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    let cli = Cli::parse();
+    let config = cli.config()?;
+
+    let mut s = State::new(config).await?;
+    s.execute(cli.command).await?;
     Ok(())
 }
