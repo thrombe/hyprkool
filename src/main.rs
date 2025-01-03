@@ -480,18 +480,40 @@ impl State {
                     }
                 };
             }
+            Command::ToggleOverview => {
+                self.focused_monitor_mut().toggle_overview().await?;
+            }
+            Command::SwitchToActivity { name, move_window } => {
+                if !self.config.activities.iter().any(|a| a == &name) {
+                    return Err(anyhow!("unknown activity name"));
+                }
+                if move_window {
+                    if let Some((a, ws)) = self.focused_monitor_mut().current() {
+                        self.move_focused_window_to(&a, ws).await?;
+                    }
+                }
+                self.focused_monitor_mut().move_to_activity(name).await?;
+            }
+            Command::FocusWindow { address } => {
+                let windows = Clients::get_async().await?;
+                for w in windows {
+                    if w.address.to_string() == address {
+                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
+                            w.address,
+                        )))
+                        .await?;
+                    }
+                }
+            }
             Command::Daemon {
                 move_to_hyprkool_activity,
             } => todo!(),
             Command::DaemonQuit => todo!(),
             Command::Info { command, monitor } => todo!(),
-            Command::FocusWindow { address } => todo!(),
-            Command::SwitchToActivity { name, move_window } => todo!(),
             Command::SwitchToWorkspaceInActivity { name, move_window } => todo!(),
             Command::SwitchToWorkspace { name, move_window } => todo!(),
             Command::SwitchNamedFocus { name, move_window } => todo!(),
             Command::SetNamedFocus { name } => todo!(),
-            Command::ToggleOverview => todo!(),
         }
 
         Ok(())
@@ -563,9 +585,8 @@ impl KMonitor {
             ))
             .await?;
         } else {
-            Dispatch::call_async(DispatchType::Custom(
-                "focusworkspaceoncurrentmonitor",
-                &format!("name:{}", ws.name(&a, true)),
+            Dispatch::call_async(DispatchType::Workspace(
+                WorkspaceIdentifierWithSpecial::Name(&ws.name(&a, true)),
             ))
             .await?;
         }
