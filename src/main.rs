@@ -502,13 +502,27 @@ impl State {
                     }
                 }
             }
+            Command::SwitchToWorkspaceInActivity { name, move_window } => {
+                let (a, _ws) = self.focused_monitor_mut().current().context("not in hyprkool activity")?;
+                let ws = KWorkspace::from_ws_part_of_name(&name).context("invalid workspace name")?;
+                if move_window {
+                    self.move_focused_window_to(&a, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a, ws).await?;
+            },
+            Command::SwitchToWorkspace { name, move_window } => {
+                let a = KActivity::from_ws_name(&name).context("activity not found")?;
+                let ws = KWorkspace::from_ws_name(&name).context("workspace not found")?;
+                if move_window {
+                    self.move_focused_window_to(&a.name, ws).await?;
+                }
+                self.focused_monitor_mut().move_to(a.name, ws).await?;
+            },
             Command::Daemon {
                 move_to_hyprkool_activity,
             } => todo!(),
             Command::DaemonQuit => todo!(),
             Command::Info { command, monitor } => todo!(),
-            Command::SwitchToWorkspaceInActivity { name, move_window } => todo!(),
-            Command::SwitchToWorkspace { name, move_window } => todo!(),
             Command::SwitchNamedFocus { name, move_window } => todo!(),
             Command::SetNamedFocus { name } => todo!(),
         }
@@ -642,7 +656,11 @@ impl KWorkspace {
     fn from_ws_name(name: &str) -> Option<Self> {
         let (_a, ws) = name.split_once(':')?;
         let ws = ws.split(':').next().unwrap_or(ws);
-        let ws = ws.strip_prefix("(")?.strip_suffix(")")?;
+        Self::from_ws_part_of_name(ws)
+    }
+
+    fn from_ws_part_of_name(name: &str) -> Option<Self> {
+        let ws = name.strip_prefix("(")?.strip_suffix(")")?;
         let (x, y) = ws.split_once(' ')?;
         let x: i32 = x.parse().ok()?;
         let y: i32 = y.parse().ok()?;
