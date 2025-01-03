@@ -409,6 +409,77 @@ impl State {
             Command::PrevActivity { cycle, move_window } => {
                 self.cycle_activity(-1, cycle, move_window).await?;
             }
+            Command::ToggleSpecialWorkspace {
+                name,
+                move_window,
+                silent,
+            } => {
+                if !move_window {
+                    Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
+                    return Ok(());
+                }
+                let window = Client::get_active_async()
+                    .await?
+                    .context("No active window")?;
+
+                let special_workspace = format!("special:{}", &name);
+                let active_workspace = self
+                    .focused_monitor_mut()
+                    .monitor
+                    .active_workspace
+                    .name
+                    .clone();
+
+                if window.workspace.name == special_workspace {
+                    if silent {
+                        let windows = Clients::get_async().await?;
+                        let c = windows
+                            .iter()
+                            .filter(|w| w.workspace.id == window.workspace.id)
+                            .count();
+                        if c == 1 {
+                            // keep focus if moving the last window from special to active workspace
+                            self.move_focused_window_to_raw(&active_workspace).await?;
+                            Dispatch::call_async(DispatchType::Custom(
+                                "focusworkspaceoncurrentmonitor",
+                                &active_workspace,
+                            ))
+                            .await?;
+                            Dispatch::call_async(DispatchType::FocusWindow(
+                                WindowIdentifier::Address(window.address),
+                            ))
+                            .await?;
+                        } else {
+                            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+                                WorkspaceIdentifierWithSpecial::Name(&active_workspace),
+                                None,
+                            ))
+                            .await?;
+                        }
+                    } else {
+                        self.move_focused_window_to_raw(&active_workspace).await?;
+                        Dispatch::call_async(DispatchType::Custom(
+                            "focusworkspaceoncurrentmonitor",
+                            &active_workspace,
+                        ))
+                        .await?;
+                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
+                            window.address,
+                        )))
+                        .await?;
+                    }
+                } else {
+                    Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
+                        WorkspaceIdentifierWithSpecial::Special(Some(&name)),
+                        None,
+                    ))
+                    .await?;
+                    if !silent {
+                        Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name)))
+                            .await?;
+                    }
+                };
+            }
             Command::Daemon {
                 move_to_hyprkool_activity,
             } => todo!(),
@@ -418,11 +489,6 @@ impl State {
             Command::SwitchToActivity { name, move_window } => todo!(),
             Command::SwitchToWorkspaceInActivity { name, move_window } => todo!(),
             Command::SwitchToWorkspace { name, move_window } => todo!(),
-            Command::ToggleSpecialWorkspace {
-                name,
-                move_window,
-                silent,
-            } => todo!(),
             Command::SwitchNamedFocus { name, move_window } => todo!(),
             Command::SetNamedFocus { name } => todo!(),
             Command::ToggleOverview => todo!(),
