@@ -484,9 +484,6 @@ impl State {
                 self.focused_monitor_mut().toggle_overview().await?;
             }
             Command::SwitchToActivity { name, move_window } => {
-                if !self.config.activities.iter().any(|a| a == &name) {
-                    return Err(anyhow!("unknown activity name"));
-                }
                 if move_window {
                     if let Some((a, ws)) = self.focused_monitor_mut().current() {
                         self.move_focused_window_to(&a, ws).await?;
@@ -550,6 +547,7 @@ impl KMonitor {
     fn current(&self) -> Option<(String, KWorkspace)> {
         let a = KActivity::from_ws_name(&self.monitor.active_workspace.name)?;
         let w = KWorkspace::from_ws_name(&self.monitor.active_workspace.name)?;
+        _ = self.activities.iter().find(|ac| ac.name == a.name)?;
         Some((a.name, w))
     }
 
