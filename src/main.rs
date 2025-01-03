@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use clap::{arg, command, Parser, Subcommand};
@@ -13,6 +14,9 @@ use hyprland::{
     shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
 };
 use serde::{Deserialize, Serialize};
+use tokio::io::BufWriter;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixStream;
 use tokio::sync::Mutex;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -288,6 +292,106 @@ impl Cli {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum Message {
+    IpcOk,
+    IpcErr(String),
+    IpcMessage(String),
+    Command(Command),
+}
+impl Message {
+    fn msg(&self) -> Vec<u8> {
+        serde_json::to_string(self).unwrap().into_bytes()
+    }
+}
+
+pub fn get_socket_dir() -> Result<PathBuf> {
+    let hypr_signature = std::env::var("HYPRLAND_INSTANCE_SIGNATURE")
+        .context("could not get HYPRLAND_INSTANCE_SIGNATURE")?;
+    let mut sock_path = PathBuf::from("/tmp/hyprkool");
+    sock_path.push(&hypr_signature);
+    if std::fs::metadata(&sock_path).is_err() {
+        std::fs::create_dir_all(&sock_path)?;
+    }
+    Ok(sock_path)
+}
+
+pub fn get_socket_path() -> Result<PathBuf> {
+    let mut sock_path = get_socket_dir()?;
+    sock_path.push("kool.sock");
+    Ok(sock_path)
+}
+pub fn get_plugin_socket_path() -> Result<PathBuf> {
+    let mut sock_path = get_socket_dir()?;
+    sock_path.push("plugin.sock");
+    Ok(sock_path)
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum Animation {
+    None = 0,
+    Left = 1,
+    Right = 2,
+    Up = 3,
+    Down = 4,
+    Fade = 5,
+}
+
+// TODO: do all this plugin ipc properly
+pub async fn is_plugin_running() -> Result<bool> {
+    _send_plugin_event(Animation::None as _).await
+}
+
+pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
+    _send_plugin_event(anim as _).await?;
+    Ok(())
+}
+
+async fn _send_plugin_event(e: usize) -> Result<bool> {
+    let sock_path = get_plugin_socket_path()?;
+
+    if let Ok(sock) = UnixStream::connect(&sock_path).await {
+        let mut sock = BufWriter::new(sock);
+        sock.write_all(format!("{}", e).as_bytes()).await?;
+        sock.flush().await?;
+        sock.shutdown().await?;
+
+        let sleep = tokio::time::sleep(Duration::from_millis(300));
+        let mut sock = BufReader::new(sock);
+        let mut line = String::new();
+        tokio::select! {
+            res = sock.read_line(&mut line) => {
+                res?;
+                let command = match serde_json::from_str(&line) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        println!("{}", e);
+                        return Ok(false);
+                    }
+                };
+                match command {
+                    Message::IpcOk => {
+                        println!("Ok");
+                        return Ok(true);
+                    }
+                    Message::IpcErr(message) => {
+                        println!("{}", message);
+                        return Ok(false);
+                    }
+                    _ => {
+                        unreachable!();
+                    }
+                }
+            }
+            _ = sleep => {
+                println!("timeout. could not connect to hyprkool plugin");
+            }
+        }
+    }
+
+    Ok(false)
+}
+
 struct State {
     config: Config,
     monitors: Vec<KMonitor>,
@@ -430,6 +534,7 @@ impl State {
                     .name
                     .clone();
 
+                _ = set_workspace_anim(Animation::Fade).await;
                 if window.workspace.name == special_workspace {
                     if silent {
                         let windows = Clients::get_async().await?;
@@ -503,13 +608,17 @@ impl State {
                 }
             }
             Command::SwitchToWorkspaceInActivity { name, move_window } => {
-                let (a, _ws) = self.focused_monitor_mut().current().context("not in hyprkool activity")?;
-                let ws = KWorkspace::from_ws_part_of_name(&name).context("invalid workspace name")?;
+                let (a, _ws) = self
+                    .focused_monitor_mut()
+                    .current()
+                    .context("not in hyprkool activity")?;
+                let ws =
+                    KWorkspace::from_ws_part_of_name(&name).context("invalid workspace name")?;
                 if move_window {
                     self.move_focused_window_to(&a, ws).await?;
                 }
                 self.focused_monitor_mut().move_to(a, ws).await?;
-            },
+            }
             Command::SwitchToWorkspace { name, move_window } => {
                 let a = KActivity::from_ws_name(&name).context("activity not found")?;
                 let ws = KWorkspace::from_ws_name(&name).context("workspace not found")?;
@@ -517,7 +626,7 @@ impl State {
                     self.move_focused_window_to(&a.name, ws).await?;
                 }
                 self.focused_monitor_mut().move_to(a.name, ws).await?;
-            },
+            }
             Command::Daemon {
                 move_to_hyprkool_activity,
             } => todo!(),
@@ -582,6 +691,8 @@ impl KMonitor {
     async fn toggle_overview(&mut self) -> Result<()> {
         let (a, ws) = self.current().context("not in a hyprkool activity")?;
 
+        _ = set_workspace_anim(Animation::Fade).await;
+
         if !self.monitor.focused {
             Dispatch::call_async(DispatchType::Custom(
                 "focusmonitor",
@@ -607,11 +718,15 @@ impl KMonitor {
     }
 
     async fn move_to(&mut self, activity: String, new_ws: KWorkspace) -> Result<()> {
-        if let Some((a, ws)) = self.current() {
+        let res = if let Some((a, ws)) = self.current() {
             if let Some(ai) = self.get_activity_index(&a) {
                 self.activities[ai].last_workspace = Some(ws);
             }
-        }
+
+            set_workspace_anim(ws.get_anim(new_ws)).await
+        } else {
+            set_workspace_anim(Animation::Fade).await
+        };
 
         if !self.monitor.focused {
             Dispatch::call_async(DispatchType::Custom(
@@ -626,7 +741,7 @@ impl KMonitor {
         ))
         .await?;
 
-        Ok(())
+        res
     }
 }
 
@@ -673,6 +788,26 @@ impl KWorkspace {
         } else {
             format!("{}:({} {})", activity, self.x, self.y)
         }
+    }
+
+    fn get_anim(self, other: Self) -> Animation {
+        let x = other.x - self.x;
+        let y = other.y - self.y;
+
+        if x > 0 && y == 0 {
+            return Animation::Right;
+        }
+        if x < 0 && y == 0 {
+            return Animation::Left;
+        }
+        if x == 0 && y > 0 {
+            return Animation::Down;
+        }
+        if x == 0 && y < 0 {
+            return Animation::Up;
+        }
+
+        Animation::Fade
     }
 }
 
