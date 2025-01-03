@@ -1,6 +1,6 @@
 [package]
 name = "hyprkool"
-version = "0.7.2-multi-monitor"
+version = "0.7.4-multi-monitor"
 edition = "2021"
 
 license = "MIT"

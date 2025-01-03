@@ -12,6 +12,7 @@ Check out our [demo video](https://youtu.be/tim5r6Yo6TA) to see Hyprkool in acti
 - info commands for tools like eww and waybar
 - an optional daemon for stateful commands
 - a grid overview
+- [harpoon](https://github.com/ThePrimeagen/harpoon) but for hyprland workspaces
 
 # Usage
 Hyprkool consists of two main components: a CLI + daemon written in Rust and a C++ plugin.
@@ -23,7 +24,7 @@ Additionally, there's an optional C++ plugin that offers a couple of features.
 The daemon component of Hyprkool is also optional but required for certain features, including:
 - Desktop switching when the cursor touches screen edges.
 - Remembering the last workspace per activity.
-- Named focus
+- Harpoon for workspaces (named-focus)
 
 # Version Compatibility
 The plugin is tested and compatible with the following versions of Hyprland. While the daemon and cli should work with any reasonably new version of Hyprland.
@@ -34,7 +35,9 @@ The plugin is tested and compatible with the following versions of Hyprland. Whi
 | [v0.40.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.40.0) | [v0.6.x](https://github.com/thrombe/hyprkool/releases/tag/0.6.0) |
 | [v0.41.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.41.0), [v0.41.1](https://github.com/hyprwm/Hyprland/releases/tag/v0.41.1) | [v0.7.0](https://github.com/thrombe/hyprkool/releases/tag/0.7.0) |
 | [v0.41.2](https://github.com/hyprwm/Hyprland/releases/tag/v0.41.2) | [v0.7.1](https://github.com/thrombe/hyprkool/releases/tag/0.7.1) |
-| [v0.42.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.42.0), [v0.43.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.43.0) | [v0.7.2](https://github.com/thrombe/hyprkool/releases/tag/0.7.2) |
+| [v0.42.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.42.0), [v0.43.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.43.0), [v0.44.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.44.1) | [v0.7.2](https://github.com/thrombe/hyprkool/releases/tag/0.7.2) |
+| [v0.45.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.45.2) | [v0.7.3](https://github.com/thrombe/hyprkool/releases/tag/0.7.3) |
+| [v0.46.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.46.2) | [v0.7.4](https://github.com/thrombe/hyprkool/releases/tag/0.7.4) |
 
 # Installing Cli/Daemon
 <!-- enable when new version of hyprland-rs drops -->
@@ -86,6 +89,8 @@ hyprpm enable hyprkool
 ### Nix
 It is recommended that you are using Hyprland flake.
 You can install hyprkool plugin just like other [hyprland plugins](https://github.com/hyprwm/hyprland-plugins?tab=readme-ov-file#nix).
+
+#### with hyprland as a flake
 ```nix
 {
   inputs = {
@@ -106,6 +111,34 @@ You can install hyprkool plugin just like other [hyprland plugins](https://githu
         # ...
         plugins = [
           inputs.hyprkool.packages.${pkgs.system}.hyprkool-plugin
+          # ...
+        ];
+      };
+    }
+
+  # ...
+}
+```
+
+#### with hyprland from nixpkgs
+```nix
+{
+  inputs = {
+    # ...
+    hyprkool.url = "github:thrombe/hyprkool";
+  };
+
+  # ...
+
+    # then, you can use the plugins with the Home Manager module
+    {inputs, pkgs, ...}: {
+      wayland.windowManager.hyprland = {
+        enable = true;
+        # ...
+        plugins = [
+          inputs.hyprkool.packages.${pkgs.system}.hyprkool-plugin.override {
+            hyprland = pkgs.hyprland;
+          }
           # ...
         ];
       };
@@ -192,6 +225,7 @@ bind = $mainMod, SPACE, exec, hyprkool toggle-special-workspace -n minimized
 # move active window to special workspace without switching to that workspace
 bind = $mainMod, s, exec, hyprkool toggle-special-workspace -n minimized -w -s
 
+# harpoon for workspaces (previously known as named-focus :P)
 # switch to named focus
 bind = $mainMod, 1, exec, hyprkool switch-named-focus -n 1
 bind = $mainMod, 2, exec, hyprkool switch-named-focus -n 2
@@ -256,3 +290,12 @@ this kind of efficient updates.
 ### Eww config
 Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/87593cb6ef9718475a3b57ce6a4a2a9727ba2eee/configma/tools/home/.config/eww/eww.yuck).
 
+# Contributing
+Contributions are welcome to Hyprkool! If you're fixing a bug, adding a feature, or making an improvement, feel free to submit a pull request (PR) to help enhance the plugin.
+
+### Guidelines:
+- Target the `dev` branch for all contributions. This ensures the `master` branch remains stable while we continue to work on new features and fixes.
+- Provide clear reproduction steps when fixing a bug. If you're resolving an issue, include detailed instructions on how to reproduce the bug so the fix can be verified.
+- Test your changes. If you're introducing new functionality or addressing a bug, ensure everything works as expected.
+
+If you have any questions or concerns about your contribution, don't hesitate to open an issue or ask for feedback.

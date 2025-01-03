@@ -4,9 +4,9 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/helpers/WLClasses.hpp>
 
-typedef void (*FuncRenderWindow)(void*, PHLWINDOW, CMonitor*, timespec*, bool, eRenderPassMode, bool, bool);
+typedef void (*FuncRenderWindow)(void*, PHLWINDOW, PHLMONITOR, timespec*, bool, eRenderPassMode, bool, bool);
 extern void* renderWindow;
-typedef void (*FuncRenderLayer)(void*, PHLLS, CMonitor*, timespec*, bool);
+typedef void (*FuncRenderLayer)(void*, PHLLS, PHLMONITOR, timespec*, bool);
 extern void* renderLayer;
 
 enum Animation {

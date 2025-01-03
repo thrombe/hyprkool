@@ -108,7 +108,7 @@ void OverviewWorkspace::render_top_layers(timespec* time) {
     // }
 }
 
-void OverviewWorkspace::render_border(CBox bbox, CColor col, int border_size) {
+void OverviewWorkspace::render_border(CBox bbox, CHyprColor col, int border_size) {
     bbox.expand(-border_size);
     bbox.round();
     bbox.w = std::max(bbox.w, 1.0);
@@ -127,8 +127,8 @@ void GridOverview::init() {
         (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, BORDER_SIZE_CONFIG_NAME)->getDataStaticPtr();
     static auto* const* GAP_SIZE =
         (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, GAP_SIZE_CONFIG_NAME)->getDataStaticPtr();
-    cursor_ws_border = CColor(**CURSOR_WS_BORDER);
-    focus_border = CColor(**FOCUS_BORDER);
+    cursor_ws_border = CHyprColor(**CURSOR_WS_BORDER);
+    focus_border = CHyprColor(**FOCUS_BORDER);
     border_size = **BORDER_SIZE;
 
     auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
@@ -146,8 +146,8 @@ void GridOverview::init() {
     }
     box.x = m->vecPosition.x;
     box.y = m->vecPosition.y;
-    box.w = m->vecSize.x;
-    box.h = m->vecSize.y;
+    box.w = m->vecSize.x * m->scale;
+    box.h = m->vecSize.y * m->scale;
 
     float gap_size = **GAP_SIZE/2.0;
     float dx = g_KoolConfig.workspaces_x;
@@ -194,7 +194,7 @@ void GridOverview::render() {
     g_pHyprOpenGL->m_RenderData.clipBox = box;
     g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
 
-    g_pHyprOpenGL->renderRectWithBlur(&box, CColor(0.0, 0.0, 0.0, 1.0));
+    g_pHyprOpenGL->renderRectWithBlur(&box, CHyprColor(0.0, 0.0, 0.0, 1.0));
 
     for (auto& ow : workspaces) {
         ow.render(&time);
@@ -204,7 +204,7 @@ void GridOverview::render() {
     auto m = g_pHyprOpenGL->m_RenderData.pMonitor;
     auto& aw = m->activeWorkspace;
 
-    auto mouse = g_pInputManager->getMouseCoordsInternal();
+    auto mouse = g_pInputManager->getMouseCoordsInternal() * m->scale;
     bool did_render_focus_ws_border = false;
     bool did_render_cursor_ws_border = false;
     for (auto& w : g_pCompositor->m_vWindows) {
@@ -221,7 +221,7 @@ void GridOverview::render() {
         for (auto& ow : workspaces) {
             if (ws->m_szName == ow.name) {
                 CBox wbox = w->getFullWindowBoundingBox();
-                wbox.scale(ow.scale);
+                wbox.scale(ow.scale * m->scale);
                 wbox.translate(ow.box.pos());
                 wbox.expand(-1);
                 wbox.round();
