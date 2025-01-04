@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,11 +10,13 @@ use hyprland::data::Monitor;
 use hyprland::data::Monitors;
 use hyprland::dispatch::WorkspaceIdentifierWithSpecial;
 use hyprland::event_listener::AsyncEventListener;
+use hyprland::shared::Address;
 use hyprland::{
     data::{Client, Clients, CursorPosition, Workspace},
     dispatch::{Dispatch, DispatchType, WindowIdentifier},
     shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
 };
+use linicon::IconPath;
 use serde::{Deserialize, Serialize};
 use tokio::io::BufWriter;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -35,11 +38,16 @@ pub struct DaemonConfig {
     /// remember what workspace was last focused on an activity
     pub remember_activity_focus: bool,
 
+    /// move monitors to a valid hyprkool activity on daemon init
+    /// also moves newly added monitors to a valid hyprkool activity
+    pub move_monitors_to_hyprkool_activity: bool,
+
     pub mouse: MouseConfig,
 }
 impl Default for DaemonConfig {
     fn default() -> Self {
         Self {
+            move_monitors_to_hyprkool_activity: true,
             remember_activity_focus: true,
             fallback_commands: true,
             mouse: Default::default(),
@@ -183,10 +191,7 @@ impl InfoCommand {
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Command {
-    Daemon {
-        #[arg(long, short, default_value_t = false)]
-        move_to_hyprkool_activity: bool,
-    },
+    Daemon,
     DaemonQuit,
     Info {
         #[command(subcommand)]
@@ -480,6 +485,77 @@ impl State {
             .expect("no monitor focused")
     }
 
+    async fn update_monitors(&mut self) -> Result<()> {
+        let monitors = Monitors::get_async().await?.into_iter().collect::<Vec<_>>();
+
+        let mut known = HashSet::new();
+
+        for m in self.monitors.iter() {
+            known.insert(m.monitor.name.clone());
+        }
+        for m in monitors.iter() {
+            if !known.contains(&m.name) {
+                self.monitors.push(KMonitor::new(m.clone(), &self.config.activities));
+            }
+        }
+
+        for m in monitors {
+            for mm in self.monitors.iter_mut() {
+                if mm.monitor.id == m.id {
+                    mm.monitor = m;
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn move_monitor_to_valid_activity(&mut self, name: &str) -> Result<()> {
+        let cursor = CursorPosition::get_async().await?;
+
+        let mut taken = HashSet::new();
+
+        for m in self.monitors.iter() {
+            if m.monitor.disabled {
+                if m.monitor.name == name {
+                    return Ok(());
+                }
+                continue;
+            }
+            taken.insert(m.monitor.active_workspace.name.clone());
+            if m.monitor.name == name && m.current().is_some() {
+                return Ok(());
+            }
+        }
+
+        'outer: for a in self.config.activities.iter() {
+            for x in 0..self.config.workspaces.0 {
+                for y in 0..self.config.workspaces.1 {
+                    let ws = KWorkspace { x, y };
+                    if taken.contains(&ws.name(a, false)) {
+                        continue;
+                    }
+                    for m in self.monitors.iter_mut() {
+                        if m.monitor.name != name {
+                            continue;
+                        }
+                        m.move_to(a.into(), ws).await?;
+                        break 'outer;
+                    }
+                }
+            }
+        }
+
+        // focus the monitor that was focused before moving the other monitor to another ws
+        if let Some((a, ws)) = self.focused_monitor_mut().current() {
+            self.focused_monitor_mut().move_to(a, ws).await?;
+            Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
+        }
+
+        Ok(())
+    }
+
     async fn move_focused_window_to(&mut self, activity: &str, ws: KWorkspace) -> Result<()> {
         if let Some(_window) = Client::get_active_async().await? {
             Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
@@ -682,9 +758,7 @@ impl State {
                 self.focused_monitor_mut().move_to(a.name, ws).await?;
                 res?;
             }
-            Command::Daemon {
-                move_to_hyprkool_activity,
-            } => todo!(),
+            Command::Daemon => todo!(),
             Command::DaemonQuit => todo!(),
             Command::Info { command, monitor } => todo!(),
             Command::SwitchNamedFocus { name, move_window } => todo!(),
@@ -694,8 +768,25 @@ impl State {
         Ok(())
     }
 
-    fn update(&mut self, event: KEvent, tx: broadcast::Sender<KInfoEvent>) -> Result<()> {
-        // TODO: consume and send info
+    async fn update(&mut self, event: KEvent, tx: broadcast::Sender<KInfoEvent>) -> Result<()> {
+        self.update_monitors().await?;
+        match event {
+            KEvent::WindowChange => todo!(),
+            KEvent::WindowOpen => todo!(),
+            KEvent::WindowMoved => todo!(),
+            KEvent::WindowClosed => todo!(),
+            KEvent::MonitorChange => todo!(),
+            KEvent::MonitorAdded { name } => {
+                if self.config.daemon.move_monitors_to_hyprkool_activity {
+                    self.move_monitor_to_valid_activity(&name).await?;
+                }
+            },
+            KEvent::MonitorRemoved { .. } => {
+                
+            },
+            KEvent::Submap { name } => {tx.send(KInfoEvent::Submap(SubmapStatus { submap: name }))?;},
+            KEvent::WorkspaceChange => todo!(),
+        }
         Ok(())
     }
 
@@ -707,16 +798,25 @@ impl State {
 
 #[derive(Clone, Debug)]
 enum KEvent {
-    Window,
-    Monitor,
-    Submap,
-    Workspace,
-    MoveMonitorsToHyprkoolActivities,
+    WindowChange,
+    WindowOpen,
+    WindowMoved,
+    WindowClosed,
+    MonitorChange,
+    MonitorAdded { name: String },
+    MonitorRemoved { name: String },
+    Submap { name: String },
+    WorkspaceChange,
 }
 
 #[derive(Clone, Debug)]
 enum KInfoEvent {
-    Submap { name: String },
+    Submap(SubmapStatus),
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct SubmapStatus {
+    submap: String,
 }
 
 struct KEventListener {
@@ -747,7 +847,69 @@ impl KEventListener {
     fn hl_event_listener(_tx: mpsc::Sender<KEvent>) -> Result<AsyncEventListener> {
         let mut el = AsyncEventListener::new();
         // TODO: subscribe all required events and fire events in channel
-        el.add_workspace_change_handler(|w| Box::pin(async move {}));
+        let tx = _tx.clone();
+        el.add_sub_map_change_handler(move |name| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::Submap { name }).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_workspace_change_handler(move |_w| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::WorkspaceChange).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_active_window_change_handler(move |_w| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::WindowChange).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_window_open_handler(move |_w| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::WindowOpen).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_window_moved_handler(move |_w| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::WindowMoved).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_window_close_handler(move |_w| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::WindowClosed).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_active_monitor_change_handler(move |_m| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::MonitorChange).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_monitor_added_handler(move |name| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::MonitorAdded { name }).await;
+            })
+        });
+        let tx = _tx.clone();
+        el.add_monitor_removed_handler(move |name| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                _ = tx.send(KEvent::MonitorRemoved { name }).await;
+            })
+        });
         Ok(el)
     }
 
@@ -850,7 +1012,7 @@ impl KEventListener {
     }
 }
 
-async fn daemon(move_to_hyprkool_activity: bool, config: Config) -> Result<()> {
+async fn daemon(config: Config) -> Result<()> {
     let mut state = State::new(config.clone()).await?;
     let mut el = KEventListener::new().await?;
 
@@ -859,10 +1021,17 @@ async fn daemon(move_to_hyprkool_activity: bool, config: Config) -> Result<()> {
         sleep_duration = std::time::Duration::from_secs(10000000);
     }
 
-    if move_to_hyprkool_activity {
-        el.event_tx
-            .send(KEvent::MoveMonitorsToHyprkoolActivities)
-            .await?;
+    if config.daemon.move_monitors_to_hyprkool_activity {
+        for name in state
+            .monitors
+            .iter()
+            .filter(|m| !m.monitor.disabled)
+            .map(|m| m.monitor.name.clone())
+            .collect::<Vec<_>>()
+        {
+            state.move_monitor_to_valid_activity(&name).await?;
+            state.update_monitors().await?;
+        }
     }
 
     let mut hl_fut = std::pin::pin!(el.hl_events.start_listener_async());
@@ -889,8 +1058,10 @@ async fn daemon(move_to_hyprkool_activity: bool, config: Config) -> Result<()> {
             event = el.event_rx.recv() => {
                 match event {
                     Some(event) => {
-                        // error when updating state is bad. so crash
-                        state.update(event, el.info_event_tx.clone())?;
+                        match state.update(event, el.info_event_tx.clone()).await {
+                            Ok(()) => {},
+                            Err(e) => println!("error during updating state: {:?}", e),
+                        }
                     },
                     None => {
                         return Err(anyhow!("hl event channel closed"));
@@ -902,9 +1073,7 @@ async fn daemon(move_to_hyprkool_activity: bool, config: Config) -> Result<()> {
                     Ok((stream, _addr)) => {
                         match KEventListener::process_ipc_conn(stream, &mut state, &el.event_tx, &el.info_event_tx).await {
                             Ok(()) => {},
-                            Err(e) => {
-                                println!("error during ipc connection: {:?}", e)
-                            },
+                            Err(e) => println!("error during ipc connection: {:?}", e),
                         }
                     },
                     Err(e) =>  println!("hyprkool socket conn error: {:?}", e),
@@ -915,9 +1084,7 @@ async fn daemon(move_to_hyprkool_activity: bool, config: Config) -> Result<()> {
 
                 match state.tick().await {
                     Ok(()) => {},
-                    Err(e) => {
-                       println!("hyprkool errored while ticking: {:?}", e);
-                    }
+                    Err(e) =>  println!("hyprkool errored while ticking: {:?}", e),
                 }
             }
         }
@@ -1042,7 +1209,7 @@ impl KActivity {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct KWorkspace {
     x: i32,
     y: i32,
@@ -1096,15 +1263,13 @@ async fn main() -> Result<()> {
     let sock_path = get_socket_path()?;
 
     match cli.command.clone() {
-        Command::Daemon {
-            move_to_hyprkool_activity,
-        } => {
+        Command::Daemon => {
             if cli.force_no_daemon {
                 println!("--force-no-daemon not allowed with this command");
                 return Ok(());
             }
 
-            daemon(move_to_hyprkool_activity, cli.config()?).await?;
+            daemon(cli.config()?).await?;
             println!("exiting daemon");
         }
         Command::Info { command, monitor } => todo!(),
