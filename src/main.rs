@@ -464,8 +464,9 @@ impl State {
         if move_window {
             self.move_focused_window_to(&a, ws).await?;
         }
+        let res = KWorkspace::set_anim(x, y).await;
         self.focused_monitor_mut().move_to(a, ws).await?;
-        Ok(())
+        res
     }
 
     async fn cycle_activity(&mut self, z: i32, cycle: bool, move_window: bool) -> Result<()> {
@@ -489,8 +490,9 @@ impl State {
         if move_window {
             self.move_focused_window_to(&a, ws).await?;
         }
+        let res = set_workspace_anim(Animation::Fade).await;
         self.focused_monitor_mut().move_to(a, ws).await?;
-        Ok(())
+        res
     }
 
     async fn execute(&mut self, command: Command) -> Result<()> {
@@ -518,6 +520,7 @@ impl State {
                 move_window,
                 silent,
             } => {
+                _ = set_workspace_anim(Animation::Fade).await;
                 if !move_window {
                     Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
                     return Ok(());
@@ -534,7 +537,6 @@ impl State {
                     .name
                     .clone();
 
-                _ = set_workspace_anim(Animation::Fade).await;
                 if window.workspace.name == special_workspace {
                     if silent {
                         let windows = Clients::get_async().await?;
@@ -617,7 +619,9 @@ impl State {
                 if move_window {
                     self.move_focused_window_to(&a, ws).await?;
                 }
+                let res = set_workspace_anim(Animation::Fade).await;
                 self.focused_monitor_mut().move_to(a, ws).await?;
+                res?;
             }
             Command::SwitchToWorkspace { name, move_window } => {
                 let a = KActivity::from_ws_name(&name).context("activity not found")?;
@@ -625,7 +629,9 @@ impl State {
                 if move_window {
                     self.move_focused_window_to(&a.name, ws).await?;
                 }
+                let res = set_workspace_anim(Animation::Fade).await;
                 self.focused_monitor_mut().move_to(a.name, ws).await?;
+                res?;
             }
             Command::Daemon {
                 move_to_hyprkool_activity,
@@ -675,6 +681,7 @@ impl KMonitor {
     }
 
     async fn move_to_activity(&mut self, activity: String) -> Result<()> {
+        let res = set_workspace_anim(Animation::Fade).await;
         if let Some((a, ws)) = self.current() {
             if let Some(ai) = self.get_activity_index(&a) {
                 self.activities[ai].last_workspace = Some(ws);
@@ -685,7 +692,7 @@ impl KMonitor {
             self.move_to(activity, KWorkspace { x: 1, y: 1 }).await?;
         }
 
-        Ok(())
+        res
     }
 
     async fn toggle_overview(&mut self) -> Result<()> {
@@ -718,14 +725,10 @@ impl KMonitor {
     }
 
     async fn move_to(&mut self, activity: String, new_ws: KWorkspace) -> Result<()> {
-        let res = if let Some((a, ws)) = self.current() {
+        if let Some((a, ws)) = self.current() {
             if let Some(ai) = self.get_activity_index(&a) {
                 self.activities[ai].last_workspace = Some(ws);
             }
-
-            set_workspace_anim(ws.get_anim(new_ws)).await
-        } else {
-            set_workspace_anim(Animation::Fade).await
         };
 
         if !self.monitor.focused {
@@ -741,7 +744,7 @@ impl KMonitor {
         ))
         .await?;
 
-        res
+        Ok(())
     }
 }
 
@@ -790,24 +793,21 @@ impl KWorkspace {
         }
     }
 
-    fn get_anim(self, other: Self) -> Animation {
-        let x = other.x - self.x;
-        let y = other.y - self.y;
-
+    async fn set_anim(x: i32, y: i32) -> Result<()> {
         if x > 0 && y == 0 {
-            return Animation::Right;
+            return set_workspace_anim(Animation::Right).await;
         }
         if x < 0 && y == 0 {
-            return Animation::Left;
+            return set_workspace_anim(Animation::Left).await;
         }
         if x == 0 && y > 0 {
-            return Animation::Down;
+            return set_workspace_anim(Animation::Down).await;
         }
         if x == 0 && y < 0 {
-            return Animation::Up;
+            return set_workspace_anim(Animation::Up).await;
         }
 
-        Animation::Fade
+        set_workspace_anim(Animation::Fade).await
     }
 }
 
