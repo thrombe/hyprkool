@@ -8,6 +8,7 @@ use clap::{arg, command, Parser, Subcommand};
 use hyprland::data::Monitor;
 use hyprland::data::Monitors;
 use hyprland::dispatch::WorkspaceIdentifierWithSpecial;
+use hyprland::event_listener::AsyncEventListener;
 use hyprland::{
     data::{Client, Clients, CursorPosition, Workspace},
     dispatch::{Dispatch, DispatchType, WindowIdentifier},
@@ -16,7 +17,10 @@ use hyprland::{
 use serde::{Deserialize, Serialize};
 use tokio::io::BufWriter;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixListener;
 use tokio::net::UnixStream;
+use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -130,6 +134,51 @@ pub enum InfoCommand {
         #[arg(long, short)]
         theme: Option<String>,
     },
+}
+
+impl InfoCommand {
+    async fn fire_events(&self, tx: mpsc::Sender<KEvent>) -> Result<()> {
+        // TODO: fire req kevents
+        todo!()
+    }
+    async fn listen(&self, rx: &mut broadcast::Receiver<KInfoEvent>) -> Result<String> {
+        // TODO: wait for required info events (once) and return what to print
+        todo!()
+    }
+
+    async fn listen_loop(
+        self,
+        mut sock: UnixStream,
+        tx: mpsc::Sender<KEvent>,
+        mut rx: broadcast::Receiver<KInfoEvent>,
+        monitor: bool,
+    ) -> Result<()> {
+        if let Err(e) = self.fire_events(tx).await {
+            sock.write_all(&Message::IpcErr(format!("error: {:?}", e)).msg())
+                .await?;
+            sock.flush().await?;
+            return Ok(());
+        }
+
+        loop {
+            match self.listen(&mut rx).await {
+                Ok(msg) => {
+                    sock.write_all(msg.as_bytes()).await?;
+                }
+                Err(err) => {
+                    sock.write_all(&Message::IpcErr(format!("error: {:?}", err)).msg())
+                        .await?;
+                }
+            }
+            sock.flush().await?;
+
+            if !monitor {
+                break;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -644,6 +693,235 @@ impl State {
 
         Ok(())
     }
+
+    fn update(&mut self, event: KEvent, tx: broadcast::Sender<KInfoEvent>) -> Result<()> {
+        // TODO: consume and send info
+        Ok(())
+    }
+
+    async fn tick(&mut self) -> Result<()> {
+        // TODO: mouse update and shit
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+enum KEvent {
+    Window,
+    Monitor,
+    Submap,
+    Workspace,
+    MoveMonitorsToHyprkoolActivities,
+}
+
+#[derive(Clone, Debug)]
+enum KInfoEvent {
+    Submap { name: String },
+}
+
+struct KEventListener {
+    sock: UnixListener,
+    hl_events: AsyncEventListener,
+
+    event_tx: mpsc::Sender<KEvent>,
+    event_rx: mpsc::Receiver<KEvent>,
+
+    info_event_tx: broadcast::Sender<KInfoEvent>,
+    info_event_rx: broadcast::Receiver<KInfoEvent>,
+}
+
+impl KEventListener {
+    pub async fn new() -> Result<Self> {
+        let (hl_tx, hl_rx) = mpsc::channel(100);
+        let (info_tx, info_rx) = broadcast::channel(100);
+        Ok(Self {
+            sock: Self::ipc_sock().await?,
+            hl_events: Self::hl_event_listener(hl_tx.clone())?,
+            event_tx: hl_tx,
+            event_rx: hl_rx,
+            info_event_tx: info_tx,
+            info_event_rx: info_rx,
+        })
+    }
+
+    fn hl_event_listener(_tx: mpsc::Sender<KEvent>) -> Result<AsyncEventListener> {
+        let mut el = AsyncEventListener::new();
+        // TODO: subscribe all required events and fire events in channel
+        el.add_workspace_change_handler(|w| Box::pin(async move {}));
+        Ok(el)
+    }
+
+    async fn ipc_sock() -> Result<UnixListener> {
+        let sock_path = get_socket_path()?;
+
+        // - [Unix sockets, the basics in Rust - Emmanuel Bosquet](https://emmanuelbosquet.com/2022/whatsaunixsocket/)
+        // send a quit message to any daemon that might be running. ignore all errors
+        if let Ok(sock) = UnixStream::connect(&sock_path).await {
+            let mut sock = BufWriter::new(sock);
+            let _ = sock
+                .write_all(&Message::Command(Command::DaemonQuit).msg())
+                .await;
+            let _ = sock.write_all("\n".as_bytes()).await;
+            let _ = sock.flush().await;
+            let _ = sock.shutdown().await;
+
+            let sleep = tokio::time::sleep(Duration::from_millis(300));
+            let mut sock = BufReader::new(sock);
+            let mut line = String::new();
+            tokio::select! {
+                res = sock.read_line(&mut line) => {
+                    let _ = res;
+                    if let Ok(command) = serde_json::from_str(&line) {
+                        match command {
+                            Message::IpcOk => { }
+                            Message::IpcErr(message) => {
+                                println!("{}", message);
+                            }
+                            _ => {
+                                unreachable!();
+                            }
+                        }
+                    }
+                }
+                _ = sleep => { }
+            }
+        }
+
+        if std::fs::metadata(&sock_path).is_ok() {
+            std::fs::remove_file(&sock_path)
+                .with_context(|| format!("could not delete previous socket at {:?}", &sock_path))?;
+        }
+
+        let sock = UnixListener::bind(&sock_path)?;
+        Ok(sock)
+    }
+
+    async fn process_ipc_conn(
+        stream: UnixStream,
+        state: &mut State,
+        kevent_tx: &mpsc::Sender<KEvent>,
+        kinfo_event_tx: &broadcast::Sender<KInfoEvent>,
+    ) -> Result<()> {
+        let mut sock = BufReader::new(stream);
+        let mut line = String::new();
+        sock.read_line(&mut line).await?;
+        let message = serde_json::from_str::<Message>(&line)?;
+        match message {
+            Message::Command(Command::DaemonQuit) => {
+                sock.write_all(&Message::IpcOk.msg()).await?;
+                sock.flush().await?;
+                return Ok(());
+            }
+            Message::Command(Command::Info { command, monitor }) => {
+                let tx = kevent_tx.clone();
+                let rx = kinfo_event_tx.subscribe();
+
+                #[allow(clippy::let_underscore_future)]
+                tokio::spawn(async move {
+                    match command
+                        .listen_loop(sock.into_inner(), tx, rx, monitor)
+                        .await
+                    {
+                        Ok(()) => {}
+                        Err(e) => {
+                            println!("error in info command: {:?}", e);
+                        }
+                    }
+                });
+            }
+            Message::Command(command) => {
+                match state.execute(command).await {
+                    Ok(_) => {
+                        sock.write_all(&Message::IpcOk.msg()).await?;
+                    }
+                    Err(e) => {
+                        sock.write_all(&Message::IpcErr(format!("error: {:?}", e)).msg())
+                            .await?;
+                    }
+                }
+                sock.flush().await?;
+            }
+            _ => {
+                unreachable!();
+            }
+        }
+
+        Ok(())
+    }
+}
+
+async fn daemon(move_to_hyprkool_activity: bool, config: Config) -> Result<()> {
+    let mut state = State::new(config.clone()).await?;
+    let mut el = KEventListener::new().await?;
+
+    let mut sleep_duration = std::time::Duration::from_millis(config.daemon.mouse.polling_rate);
+    if config.daemon.mouse.switch_workspace_on_edge {
+        sleep_duration = std::time::Duration::from_secs(10000000);
+    }
+
+    if move_to_hyprkool_activity {
+        el.event_tx
+            .send(KEvent::MoveMonitorsToHyprkoolActivities)
+            .await?;
+    }
+
+    let mut hl_fut = std::pin::pin!(el.hl_events.start_listener_async());
+    let mut tick_fut = std::pin::pin!(tokio::time::sleep(sleep_duration));
+
+    loop {
+        tokio::select! {
+            event = hl_fut.as_mut() => {
+                event?;
+                return Err(anyhow!("Hyprland socket closed?"));
+            }
+            event = el.info_event_rx.recv() => {
+                match event {
+                    Ok(e) => {
+                        // nothing to do here
+                        dbg!(e);
+                    },
+                    Err(broadcast::error::RecvError::Lagged(_)) => { },
+                    Err(broadcast::error::RecvError::Closed) => {
+                        return Err(anyhow!("info event channel closed"));
+                    },
+                }
+            }
+            event = el.event_rx.recv() => {
+                match event {
+                    Some(event) => {
+                        // error when updating state is bad. so crash
+                        state.update(event, el.info_event_tx.clone())?;
+                    },
+                    None => {
+                        return Err(anyhow!("hl event channel closed"));
+                    }
+                }
+            }
+            event = el.sock.accept() => {
+                match event {
+                    Ok((stream, _addr)) => {
+                        match KEventListener::process_ipc_conn(stream, &mut state, &el.event_tx, &el.info_event_tx).await {
+                            Ok(()) => {},
+                            Err(e) => {
+                                println!("error during ipc connection: {:?}", e)
+                            },
+                        }
+                    },
+                    Err(e) =>  println!("hyprkool socket conn error: {:?}", e),
+                }
+            }
+            _  = tick_fut.as_mut() => {
+                tick_fut.as_mut().set(tokio::time::sleep(sleep_duration));
+
+                match state.tick().await {
+                    Ok(()) => {},
+                    Err(e) => {
+                       println!("hyprkool errored while ticking: {:?}", e);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -814,9 +1092,74 @@ impl KWorkspace {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config = cli.config()?;
 
-    let mut s = State::new(config).await?;
-    s.execute(cli.command).await?;
+    let sock_path = get_socket_path()?;
+
+    match cli.command.clone() {
+        Command::Daemon {
+            move_to_hyprkool_activity,
+        } => {
+            if cli.force_no_daemon {
+                println!("--force-no-daemon not allowed with this command");
+                return Ok(());
+            }
+
+            daemon(move_to_hyprkool_activity, cli.config()?).await?;
+            println!("exiting daemon");
+        }
+        Command::Info { command, monitor } => todo!(),
+        cmd => {
+            if !cli.force_no_daemon {
+                if let Ok(sock) = UnixStream::connect(&sock_path).await {
+                    let mut sock = BufWriter::new(sock);
+                    sock.write_all(&Message::Command(cmd.clone()).msg()).await?;
+                    sock.flush().await?;
+                    sock.shutdown().await?;
+
+                    let sleep = tokio::time::sleep(Duration::from_millis(300));
+                    let mut sock = BufReader::new(sock);
+                    let mut line = String::new();
+                    tokio::select! {
+                        res = sock.read_line(&mut line) => {
+                            res?;
+                            let command = serde_json::from_str(&line)?;
+                            match command {
+                                Message::IpcOk => {
+                                    println!("Ok");
+                                    return Ok(());
+                                }
+                                Message::IpcErr(message) => {
+                                    println!("{}", message);
+                                    return Ok(());
+                                }
+                                _ => {
+                                    unreachable!();
+                                }
+                            }
+                        }
+                        _ = sleep => {
+                            println!("timeout. could not connect to hyprkool");
+                        }
+                    }
+                }
+
+                let config = cli.config()?;
+                if !config.daemon.fallback_commands {
+                    return Ok(());
+                }
+                println!("falling back to stateless commands");
+            }
+
+            let mut state = match State::new(cli.config()?).await {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("{}", e);
+                    return Ok(());
+                }
+            };
+            state.execute(cmd).await?;
+        }
+    }
+
     Ok(())
 }
