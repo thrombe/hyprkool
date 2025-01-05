@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use clap::{arg, command, Parser, Subcommand};
+use hyprland::data::FullscreenMode;
 use hyprland::data::Monitor;
 use hyprland::data::Monitors;
 use hyprland::dispatch::WorkspaceIdentifierWithSpecial;
@@ -495,7 +496,8 @@ impl State {
         }
         for m in monitors.iter() {
             if !known.contains(&m.name) {
-                self.monitors.push(KMonitor::new(m.clone(), &self.config.activities));
+                self.monitors
+                    .push(KMonitor::new(m.clone(), &self.config.activities));
             }
         }
 
@@ -791,7 +793,88 @@ impl State {
     }
 
     async fn tick(&mut self) -> Result<()> {
-        // TODO: mouse update and shit
+        if !self.config.daemon.mouse.switch_workspace_on_edge {
+            return Ok(());
+        }
+
+        let w = self.config.daemon.mouse.edge_width as i64;
+        let m = self.config.daemon.mouse.edge_margin as i64;
+
+        let nx = self.config.workspaces.0 as i64;
+        let ny = self.config.workspaces.1 as i64;
+
+        let mut c = CursorPosition::get_async().await?;
+        let monitor = self.focused_monitor_mut();
+
+        // OOF:
+        // hyprland returns wrong scale.
+        // hyprland seems to support only a few scales (ig depending on the screen resolution)
+        //  but it returns only 2 decimal places of the scale. which hurts calculation precision.
+        //  not sure what to do here.
+        let mut scale = monitor.monitor.scale;
+        if scale == 0.83 {
+            scale = 0.8333333;
+        }
+        let width = (monitor.monitor.width as f64 / scale as f64) as i64; 
+        let height = (monitor.monitor.height as f64 / scale as f64) as i64; 
+
+        c.x -= monitor.monitor.x as i64;
+        c.y -= monitor.monitor.y as i64;
+
+        // dbg!(&c, width, height, scale);
+
+        let mut y: i64 = 0;
+        let mut x: i64 = 0;
+        let mut anim = Animation::Fade;
+        if c.x <= w {
+            x += nx - 1;
+            c.x = width - m;
+            anim = Animation::Left;
+        } else if c.x >= width - 1 - w {
+            x += 1;
+            c.x = m;
+            anim = Animation::Right;
+        }
+        if c.y <= w {
+            y += ny - 1;
+            c.y = height - m;
+            anim = Animation::Up;
+        } else if c.y >= height - 1 - w {
+            y += 1;
+            c.y = m;
+            anim = Animation::Down;
+        }
+
+        if x + y == 0 {
+            return Ok(());
+        }
+
+        if x > 0 && y > 0 {
+            anim = Animation::Fade;
+        }
+
+        c.x += monitor.monitor.x as i64;
+        c.y += monitor.monitor.y as i64;
+        
+        let Some((a, ws)) = monitor.current()
+        else {
+            println!("not in a hyprkool workspace: {}", monitor.monitor.active_workspace.name);
+            return Ok(());
+        };
+
+        if let Some(window) = Client::get_active_async().await? {
+            // should i use window.fullscreen or window.fullscreen_client ?
+            if window.fullscreen as u8 > FullscreenMode::Maximized as u8 {
+                return Ok(());
+            }
+        }
+
+        let new_ws = self.moved_ws(ws, true, x as _, y as _);
+        if new_ws != ws {
+            _ = set_workspace_anim(anim).await;
+            self.focused_monitor_mut().move_to(a, new_ws).await?;
+            Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
+        }
         Ok(())
     }
 }
