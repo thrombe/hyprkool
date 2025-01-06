@@ -170,13 +170,15 @@ impl InfoCommand {
 
                     for m in vec.iter_mut() {
                         for a in m.activities.iter_mut() {
-                            for w in a.workspaces.iter_mut() {
-                                for c in w.windows.iter_mut() {
-                                    c.icon = ctx.get_icon_path(
-                                        &c.initial_title,
-                                        window_icon_theme.as_ref(),
-                                        *window_icon_try_min_size,
-                                    )?;
+                            for row in a.workspaces.iter_mut() {
+                                for w in row.iter_mut() {
+                                    for c in w.windows.iter_mut() {
+                                        c.icon = ctx.get_icon_path(
+                                            &c.initial_title,
+                                            window_icon_theme.as_ref(),
+                                            *window_icon_try_min_size,
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -912,8 +914,9 @@ impl State {
             let mut activities = vec![];
             for a in m.activities.iter() {
                 let mut workspaces = vec![];
-                for x in 0..self.config.workspaces.0 {
-                    for y in 0..self.config.workspaces.1 {
+                for y in 1..=self.config.workspaces.1 {
+                    let mut row = vec![];
+                    for x in 1..=self.config.workspaces.0 {
                         let ws = KWorkspace { x, y };
                         let ws_name = ws.name(&a.name, false);
 
@@ -928,9 +931,10 @@ impl State {
                                 initial_title: client.initial_title.clone(),
                                 icon: None,
                                 address: client.address.to_string(),
+                                focused: client.focus_history_id == 0,
                             });
                         }
-                        workspaces.push(WorkspaceStatus {
+                        row.push(WorkspaceStatus {
                             focused: m.monitor.active_workspace.name == ws_name,
                             name: ws_name,
                             // TODO:
@@ -938,6 +942,7 @@ impl State {
                             windows,
                         });
                     }
+                    workspaces.push(row);
                 }
                 activities.push(ActivityStatus {
                     name: a.name.clone(),
@@ -951,6 +956,7 @@ impl State {
                 name: m.monitor.name.clone(),
                 id: m.monitor.id as _,
                 focused: m.monitor.focused,
+                scale: m.monitor.scale,
                 activities,
             });
         }
@@ -977,9 +983,8 @@ enum KEvent {
 struct InfoCommandContext {
     config: Config,
 
-    // TODO:
     /// (theme, size, class)
-    icons: HashMap<(String, u32, String), PathBuf>,
+    icons: HashMap<(Option<String>, u16, String), Option<PathBuf>>,
 }
 
 impl InfoCommandContext {
@@ -988,21 +993,31 @@ impl InfoCommandContext {
         class: &str,
         theme: Option<&String>,
         window_icon_try_min_size: Option<u16>,
-    ) -> Result<Option<PathBuf>> {
-        let mut icons = linicon::lookup_icon(class);
-        if let Some(theme) = theme {
-            icons = icons.from_theme(theme);
-        } else if let Some(theme) = self.config.icon_theme.as_ref() {
-            icons = icons.from_theme(theme);
-        }
-
+    ) -> Option<PathBuf> {
+        let theme = theme.cloned().or(self.config.icon_theme.clone());
         let icon_min_size = window_icon_try_min_size
             .or(self.config.window_icon_try_min_size)
             .unwrap_or(0);
+
+        if let Some(icon) = self
+            .icons
+            .get(&(theme.clone(), icon_min_size, class.to_string()))
+        {
+            return icon.clone();
+        }
+
+        let mut icons = linicon::lookup_icon(class);
+
+        if let Some(theme) = &theme {
+            icons = icons.from_theme(theme);
+        }
+
         let mut icon = None;
         let mut alt = None;
         for next in icons {
-            let next = next?;
+            let Some(next) = next.ok() else {
+                continue;
+            };
             if next.min_size >= icon_min_size
                 && next.min_size
                     < icon
@@ -1020,11 +1035,20 @@ impl InfoCommandContext {
                 alt = Some(next);
             }
         }
+
         let mut icon = icon.or(alt).map(|i| i.path);
+
         if icon.is_none() {
-            icon = self.get_icon_path("wayland", theme, window_icon_try_min_size)?;
+            if class == "wayland" {
+                return None;
+            }
+            icon = self.get_icon_path("wayland", theme.as_ref(), window_icon_try_min_size);
         }
-        Ok(icon)
+
+        self.icons
+            .insert((theme, icon_min_size, class.to_string()), icon.clone());
+
+        icon
     }
 }
 
@@ -1045,13 +1069,14 @@ struct MonitorStatus {
     id: i64,
     focused: bool,
     activities: Vec<ActivityStatus>,
+    scale: f32,
 }
 
 #[derive(Serialize, Debug, Clone)]
 struct ActivityStatus {
     name: String,
     focused: bool,
-    workspaces: Vec<WorkspaceStatus>,
+    workspaces: Vec<Vec<WorkspaceStatus>>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -1069,6 +1094,7 @@ struct WindowStatus {
     initial_title: String,
     icon: Option<PathBuf>,
     address: String,
+    focused: bool,
 }
 
 struct KEventListener {
