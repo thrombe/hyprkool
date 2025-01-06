@@ -97,6 +97,9 @@ pub struct Config {
     pub multi_monitor_strategy: MultiMonitorStrategy,
     pub named_focii: HashMap<String, String>,
     pub daemon: DaemonConfig,
+
+    pub icon_theme: Option<String>,
+    pub window_icon_try_min_size: Option<u16>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -106,53 +109,84 @@ impl Default for Config {
             multi_monitor_strategy: MultiMonitorStrategy::SharedWorkspacesUnsyncActivities,
             named_focii: Default::default(),
             daemon: Default::default(),
+            icon_theme: None,
+            window_icon_try_min_size: None,
         }
     }
 }
 
 #[derive(Subcommand, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum InfoCommand {
-    WaybarActivityStatus,
-    WaybarActiveWindow,
-
     Submap,
-    Activities,
-    Workspaces,
-    AllWorkspaces,
-    ActiveWindow {
+
+    /// shows all info needed to create widgets for windows, workspaces, activities, monitors
+    MonitorsAllInfo {
         /// try to find smallest icon bigger/equal to this size in px
         /// default is 0
         /// returns the biggest found size if none is bigger than/equal to the specified size
-        #[arg(long, short = 's', default_value_t = 0)]
-        try_min_size: u16,
+        #[arg(long, short = 's')]
+        window_icon_try_min_size: Option<u16>,
 
         /// default value is the current icon theme
         /// will use fallback theme is this is not found
-        #[arg(long, short)]
-        theme: Option<String>,
-    },
-    ActiveWorkspaceWindows {
-        /// try to find smallest icon bigger/equal to this size in px
-        /// default is 0
-        /// returns the biggest found size if none is bigger than/equal to the specified size
-        #[arg(long, short = 's', default_value_t = 0)]
-        try_min_size: u16,
-
-        /// default value is the current icon theme
-        /// will use fallback theme is this is not found
-        #[arg(long, short)]
-        theme: Option<String>,
+        #[arg(long, short = 't')]
+        window_icon_theme: Option<String>,
     },
 }
 
 impl InfoCommand {
     async fn fire_events(&self, tx: mpsc::Sender<KEvent>) -> Result<()> {
-        // TODO: fire req kevents
-        todo!()
+        match self {
+            InfoCommand::MonitorsAllInfo { .. } => {
+                tx.send(KEvent::MonitorInfoRequested).await?;
+            }
+            InfoCommand::Submap => {}
+        }
+
+        Ok(())
     }
-    async fn listen(&self, rx: &mut broadcast::Receiver<KInfoEvent>) -> Result<String> {
-        // TODO: wait for required info events (once) and return what to print
-        todo!()
+
+    #[allow(clippy::single_match)]
+    async fn listen(
+        &self,
+        rx: &mut broadcast::Receiver<KInfoEvent>,
+        info_ctx: &Arc<Mutex<InfoCommandContext>>,
+    ) -> Result<Option<String>> {
+        let event = rx.recv().await?;
+
+        match self {
+            InfoCommand::Submap => match event {
+                KInfoEvent::Submap(submap_status) => {
+                    Ok(Some(serde_json::to_string(&submap_status)?))
+                }
+                _ => Ok(None),
+            },
+            InfoCommand::MonitorsAllInfo {
+                window_icon_try_min_size,
+                window_icon_theme,
+            } => match event {
+                KInfoEvent::Monitors(mut vec) => {
+                    let mut ctx = info_ctx.lock().await;
+
+                    for m in vec.iter_mut() {
+                        for a in m.activities.iter_mut() {
+                            for w in a.workspaces.iter_mut() {
+                                for c in w.windows.iter_mut() {
+                                    c.icon = ctx.get_icon_path(
+                                        &c.initial_title,
+                                        window_icon_theme.as_ref(),
+                                        *window_icon_try_min_size,
+                                    )?;
+                                }
+                            }
+                        }
+                    }
+
+                    Ok(Some(serde_json::to_string(&vec)?))
+                }
+                _ => Ok(None),
+            },
+        }
     }
 
     async fn listen_loop(
@@ -161,8 +195,12 @@ impl InfoCommand {
         tx: mpsc::Sender<KEvent>,
         mut rx: broadcast::Receiver<KInfoEvent>,
         monitor: bool,
+        info_ctx: Arc<Mutex<InfoCommandContext>>,
     ) -> Result<()> {
+        // NOTE: DO NOT return errors other than socket errors
+
         if let Err(e) = self.fire_events(tx).await {
+            println!("error when firing info events: {e}");
             sock.write_all(&Message::IpcErr(format!("error: {:?}", e)).msg())
                 .await?;
             sock.flush().await?;
@@ -170,12 +208,14 @@ impl InfoCommand {
         }
 
         loop {
-            match self.listen(&mut rx).await {
-                Ok(msg) => {
-                    sock.write_all(msg.as_bytes()).await?;
+            match self.listen(&mut rx, &info_ctx).await {
+                Ok(Some(msg)) => {
+                    sock.write_all(&Message::IpcMessage(msg).msg()).await?;
                 }
-                Err(err) => {
-                    sock.write_all(&Message::IpcErr(format!("error: {:?}", err)).msg())
+                Ok(None) => {}
+                Err(e) => {
+                    println!("error when listening for info messages: {e}");
+                    sock.write_all(&Message::IpcErr(format!("error: {:?}", e)).msg())
                         .await?;
                 }
             }
@@ -747,22 +787,33 @@ impl State {
 
     async fn update(&mut self, event: KEvent, tx: broadcast::Sender<KInfoEvent>) -> Result<()> {
         self.update_monitors().await?;
-        match event {
-            KEvent::WindowChange => todo!(),
-            KEvent::WindowOpen => todo!(),
-            KEvent::WindowMoved => todo!(),
-            KEvent::WindowClosed => todo!(),
-            KEvent::MonitorChange => todo!(),
+
+        #[allow(clippy::single_match)]
+        match &event {
             KEvent::MonitorAdded { name } => {
                 if self.config.daemon.move_monitors_to_hyprkool_activity {
-                    self.move_monitor_to_valid_activity(&name, false).await?;
+                    self.move_monitor_to_valid_activity(name, false).await?;
                 }
-            },
-            KEvent::MonitorRemoved { .. } => {
-                
-            },
-            KEvent::Submap { name } => {tx.send(KInfoEvent::Submap(SubmapStatus { submap: name }))?;},
-            KEvent::WorkspaceChange => todo!(),
+            }
+            _ => {}
+        }
+
+        match event {
+            KEvent::MonitorInfoRequested
+            | KEvent::WindowChange
+            | KEvent::WindowOpen
+            | KEvent::WindowMoved
+            | KEvent::WindowClosed
+            | KEvent::MonitorChange
+            | KEvent::WorkspaceChange
+            | KEvent::MonitorAdded { .. }
+            | KEvent::MonitorRemoved { .. } => {
+                let clients = Clients::get_async().await?.into_iter().collect::<Vec<_>>();
+                tx.send(KInfoEvent::Monitors(self.gather_info(&clients)))?;
+            }
+            KEvent::Submap { name } => {
+                tx.send(KInfoEvent::Submap(SubmapStatus { submap: name }))?;
+            }
         }
         Ok(())
     }
@@ -854,6 +905,58 @@ impl State {
         }
         Ok(())
     }
+
+    fn gather_info(&mut self, clients: &[Client]) -> Vec<MonitorStatus> {
+        let mut monitors = vec![];
+        for m in self.monitors.clone().iter() {
+            let mut activities = vec![];
+            for a in m.activities.iter() {
+                let mut workspaces = vec![];
+                for x in 0..self.config.workspaces.0 {
+                    for y in 0..self.config.workspaces.1 {
+                        let ws = KWorkspace { x, y };
+                        let ws_name = ws.name(&a.name, false);
+
+                        let mut windows = vec![];
+                        for client in clients {
+                            if client.workspace.name != ws_name {
+                                continue;
+                            }
+                            windows.push(WindowStatus {
+                                title: client.title.clone(),
+                                class: client.class.clone(),
+                                initial_title: client.initial_title.clone(),
+                                icon: None,
+                                address: client.address.to_string(),
+                            });
+                        }
+                        workspaces.push(WorkspaceStatus {
+                            focused: m.monitor.active_workspace.name == ws_name,
+                            name: ws_name,
+                            // TODO:
+                            named_focus: vec![],
+                            windows,
+                        });
+                    }
+                }
+                activities.push(ActivityStatus {
+                    name: a.name.clone(),
+                    focused: KActivity::from_ws_name(&m.monitor.active_workspace.name)
+                        .map(|ka| ka.name == a.name)
+                        .unwrap_or_default(),
+                    workspaces,
+                });
+            }
+            monitors.push(MonitorStatus {
+                name: m.monitor.name.clone(),
+                id: m.monitor.id as _,
+                focused: m.monitor.focused,
+                activities,
+            });
+        }
+
+        monitors
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -867,16 +970,105 @@ enum KEvent {
     MonitorAdded { name: String },
     MonitorRemoved { name: String },
     Submap { name: String },
+
+    MonitorInfoRequested,
+}
+
+struct InfoCommandContext {
+    config: Config,
+
+    // TODO:
+    /// (theme, size, class)
+    icons: HashMap<(String, u32, String), PathBuf>,
+}
+
+impl InfoCommandContext {
+    fn get_icon_path(
+        &mut self,
+        class: &str,
+        theme: Option<&String>,
+        window_icon_try_min_size: Option<u16>,
+    ) -> Result<Option<PathBuf>> {
+        let mut icons = linicon::lookup_icon(class);
+        if let Some(theme) = theme {
+            icons = icons.from_theme(theme);
+        } else if let Some(theme) = self.config.icon_theme.as_ref() {
+            icons = icons.from_theme(theme);
+        }
+
+        let icon_min_size = window_icon_try_min_size
+            .or(self.config.window_icon_try_min_size)
+            .unwrap_or(0);
+        let mut icon = None;
+        let mut alt = None;
+        for next in icons {
+            let next = next?;
+            if next.min_size >= icon_min_size
+                && next.min_size
+                    < icon
+                        .as_ref()
+                        .map(|i: &IconPath| i.min_size)
+                        .unwrap_or(u16::MAX)
+            {
+                icon = Some(next);
+            } else if next.min_size
+                > alt
+                    .as_ref()
+                    .map(|i: &IconPath| i.min_size)
+                    .unwrap_or(u16::MIN)
+            {
+                alt = Some(next);
+            }
+        }
+        let mut icon = icon.or(alt).map(|i| i.path);
+        if icon.is_none() {
+            icon = self.get_icon_path("wayland", theme, window_icon_try_min_size)?;
+        }
+        Ok(icon)
+    }
 }
 
 #[derive(Clone, Debug)]
 enum KInfoEvent {
     Submap(SubmapStatus),
+    Monitors(Vec<MonitorStatus>),
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct SubmapStatus {
     submap: String,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct MonitorStatus {
+    name: String,
+    id: i64,
+    focused: bool,
+    activities: Vec<ActivityStatus>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct ActivityStatus {
+    name: String,
+    focused: bool,
+    workspaces: Vec<WorkspaceStatus>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct WorkspaceStatus {
+    name: String,
+    focused: bool,
+    named_focus: Vec<String>,
+    windows: Vec<WindowStatus>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct WindowStatus {
+    title: String,
+    class: String,
+    initial_title: String,
+    icon: Option<PathBuf>,
+    address: String,
 }
 
 struct KEventListener {
@@ -1022,6 +1214,7 @@ impl KEventListener {
         state: &mut State,
         kevent_tx: &mpsc::Sender<KEvent>,
         kinfo_event_tx: &broadcast::Sender<KInfoEvent>,
+        info_ctx: Arc<Mutex<InfoCommandContext>>,
     ) -> Result<()> {
         let mut sock = BufReader::new(stream);
         let mut line = String::new();
@@ -1043,12 +1236,13 @@ impl KEventListener {
                 #[allow(clippy::let_underscore_future)]
                 tokio::spawn(async move {
                     match command
-                        .listen_loop(sock.into_inner(), tx, rx, monitor)
+                        .listen_loop(sock.into_inner(), tx, rx, monitor, info_ctx)
                         .await
                     {
                         Ok(()) => {}
-                        Err(e) => {
-                            println!("error in info command: {:?}", e);
+                        Err(_e) => {
+                            // NOTE: we ignore these errors, as the only errors can be when socket is broken
+                            // println!("error in info command: {:?}", _e);
                         }
                     }
                 });
@@ -1077,6 +1271,11 @@ impl KEventListener {
 async fn daemon(config: Config) -> Result<()> {
     let mut state = State::new(config.clone()).await?;
     let mut el = KEventListener::new().await?;
+    let info_ctx = InfoCommandContext {
+        config: config.clone(),
+        icons: Default::default(),
+    };
+    let info_ctx = Arc::new(Mutex::new(info_ctx));
 
     let sleep_duration = std::time::Duration::from_millis(config.daemon.mouse.polling_rate);
 
@@ -1130,7 +1329,7 @@ async fn daemon(config: Config) -> Result<()> {
             event = el.sock.accept() => {
                 match event {
                     Ok((stream, _addr)) => {
-                        match KEventListener::process_ipc_conn(stream, &mut state, &el.event_tx, &el.info_event_tx).await {
+                        match KEventListener::process_ipc_conn(stream, &mut state, &el.event_tx, &el.info_event_tx, info_ctx.clone()).await {
                             Ok(()) => {},
                             Err(e) => println!("error during ipc connection: {:?}", e),
                         }
@@ -1368,7 +1567,72 @@ async fn main() -> Result<()> {
             daemon(cli.config()?).await?;
             println!("exiting daemon");
         }
-        Command::Info { command, monitor } => todo!(),
+        Command::Info { command, monitor } => {
+            if !cli.force_no_daemon {
+                if let Ok(sock) = UnixStream::connect(&sock_path).await {
+                    let mut sock = BufWriter::new(sock);
+                    sock.write_all(
+                        &Message::Command(Command::Info {
+                            command: command.clone(),
+                            monitor,
+                        })
+                        .msg(),
+                    )
+                    .await?;
+                    sock.flush().await?;
+                    sock.shutdown().await?;
+
+                    let mut sock = BufReader::new(sock);
+                    loop {
+                        let mut line = String::new();
+                        let _ = sock.read_line(&mut line).await?;
+
+                        if !monitor && line.is_empty() {
+                            return Ok(());
+                        }
+
+                        if line.is_empty() {
+                            continue;
+                        }
+
+                        let command = serde_json::from_str(&line)?;
+                        match command {
+                            Message::IpcMessage(message) => {
+                                println!("{}", message);
+                            }
+                            Message::IpcErr(message) => {
+                                println!("{}", message);
+                            }
+                            _ => {
+                                unreachable!();
+                            }
+                        }
+                    }
+                }
+
+                let config = cli.config()?;
+                if !config.daemon.fallback_commands {
+                    return Ok(());
+                }
+                dbg!("falling back to stateless commands");
+            }
+
+            // let state = match State::new(cli.config()?) {
+            //     Ok(s) => s,
+            //     Err(e) => {
+            //         println!("{}", e);
+            //         return Ok(());
+            //     }
+            // };
+            // command
+            //     .execute(
+            //         InfoOutputStream::Stdout,
+            //         Arc::new(Mutex::new(state)),
+            //         monitor,
+            //     )
+            //     .await?;
+            todo!();
+        }
         cmd => {
             if !cli.force_no_daemon {
                 if let Ok(sock) = UnixStream::connect(&sock_path).await {
