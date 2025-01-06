@@ -356,7 +356,9 @@ pub enum Message {
 }
 impl Message {
     fn msg(&self) -> Vec<u8> {
-        serde_json::to_string(self).unwrap().into_bytes()
+        let mut bytes = serde_json::to_string(self).unwrap().into_bytes();
+        bytes.extend_from_slice(b"\n");
+        bytes
     }
 }
 
@@ -981,7 +983,6 @@ impl KEventListener {
             let _ = sock
                 .write_all(&Message::Command(Command::DaemonQuit).msg())
                 .await;
-            let _ = sock.write_all("\n".as_bytes()).await;
             let _ = sock.flush().await;
             let _ = sock.shutdown().await;
 
@@ -1025,6 +1026,9 @@ impl KEventListener {
         let mut sock = BufReader::new(stream);
         let mut line = String::new();
         sock.read_line(&mut line).await?;
+        if line.is_empty() {
+            return Ok(());
+        }
         let message = serde_json::from_str::<Message>(&line)?;
         match message {
             Message::Command(Command::DaemonQuit) => {
