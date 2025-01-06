@@ -580,8 +580,7 @@ impl State {
             } else {
                 ai = ai.min(self.config.activities.len() as isize - 1).max(0);
             }
-            let a = self.config.activities[ai as usize].clone();
-            a
+            self.config.activities[ai as usize].clone()
         } else {
             self.config.activities[0].clone()
         };
@@ -1057,10 +1056,7 @@ async fn daemon(config: Config) -> Result<()> {
     let mut state = State::new(config.clone()).await?;
     let mut el = KEventListener::new().await?;
 
-    let mut sleep_duration = std::time::Duration::from_millis(config.daemon.mouse.polling_rate);
-    if config.daemon.mouse.switch_workspace_on_edge {
-        sleep_duration = std::time::Duration::from_secs(10000000);
-    }
+    let sleep_duration = std::time::Duration::from_millis(config.daemon.mouse.polling_rate);
 
     if config.daemon.move_monitors_to_hyprkool_activity {
         for name in state
