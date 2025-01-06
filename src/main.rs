@@ -513,7 +513,11 @@ impl State {
         Ok(())
     }
 
-    async fn move_monitor_to_valid_activity(&mut self, name: &str, move_window: bool) -> Result<()> {
+    async fn move_monitor_to_valid_activity(
+        &mut self,
+        name: &str,
+        move_window: bool,
+    ) -> Result<()> {
         let cursor = CursorPosition::get_async().await?;
 
         let mut taken = HashSet::new();
@@ -565,7 +569,9 @@ impl State {
             .context("not in a hyprkool workspace")?;
         let ws = self.moved_ws(ws, cycle, x, y);
         let res = KWorkspace::set_anim(x, y).await;
-        self.focused_monitor_mut().move_to(a, ws, move_window).await?;
+        self.focused_monitor_mut()
+            .move_to(a, ws, move_window)
+            .await?;
         res
     }
 
@@ -584,7 +590,9 @@ impl State {
         } else {
             self.config.activities[0].clone()
         };
-        self.focused_monitor_mut().move_to_activity(a, move_window).await?;
+        self.focused_monitor_mut()
+            .move_to_activity(a, move_window)
+            .await?;
         Ok(())
     }
 
@@ -639,7 +647,9 @@ impl State {
                             .count();
                         if c == 1 {
                             // keep focus if moving the last window from special to active workspace
-                            self.focused_monitor_mut().move_focused_window_to_raw(&active_workspace).await?;
+                            self.focused_monitor_mut()
+                                .move_focused_window_to_raw(&active_workspace)
+                                .await?;
                             Dispatch::call_async(DispatchType::Custom(
                                 "focusworkspaceoncurrentmonitor",
                                 &active_workspace,
@@ -657,7 +667,9 @@ impl State {
                             .await?;
                         }
                     } else {
-                        self.focused_monitor_mut().move_focused_window_to_raw(&active_workspace).await?;
+                        self.focused_monitor_mut()
+                            .move_focused_window_to_raw(&active_workspace)
+                            .await?;
                         Dispatch::call_async(DispatchType::Custom(
                             "focusworkspaceoncurrentmonitor",
                             &active_workspace,
@@ -684,7 +696,9 @@ impl State {
                 self.focused_monitor_mut().toggle_overview().await?;
             }
             Command::SwitchToActivity { name, move_window } => {
-                self.focused_monitor_mut().move_to_activity(name, move_window).await?;
+                self.focused_monitor_mut()
+                    .move_to_activity(name, move_window)
+                    .await?;
             }
             Command::FocusWindow { address } => {
                 let windows = Clients::get_async().await?;
@@ -705,14 +719,18 @@ impl State {
                 let ws =
                     KWorkspace::from_ws_part_of_name(&name).context("invalid workspace name")?;
                 let res = set_workspace_anim(Animation::Fade).await;
-                self.focused_monitor_mut().move_to(a, ws, move_window).await?;
+                self.focused_monitor_mut()
+                    .move_to(a, ws, move_window)
+                    .await?;
                 res?;
             }
             Command::SwitchToWorkspace { name, move_window } => {
                 let a = KActivity::from_ws_name(&name).context("activity not found")?;
                 let ws = KWorkspace::from_ws_name(&name).context("workspace not found")?;
                 let res = set_workspace_anim(Animation::Fade).await;
-                self.focused_monitor_mut().move_to(a.name, ws, move_window).await?;
+                self.focused_monitor_mut()
+                    .move_to(a.name, ws, move_window)
+                    .await?;
                 res?;
             }
             Command::Daemon => todo!(),
@@ -842,11 +860,11 @@ enum KEvent {
     WindowOpen,
     WindowMoved,
     WindowClosed,
+    WorkspaceChange,
     MonitorChange,
     MonitorAdded { name: String },
     MonitorRemoved { name: String },
     Submap { name: String },
-    WorkspaceChange,
 }
 
 #[derive(Clone, Debug)]
@@ -1082,9 +1100,9 @@ async fn daemon(config: Config) -> Result<()> {
             }
             event = el.info_event_rx.recv() => {
                 match event {
-                    Ok(e) => {
+                    Ok(_e) => {
                         // nothing to do here
-                        dbg!(e);
+                        // dbg!(_e);
                     },
                     Err(broadcast::error::RecvError::Lagged(_)) => { },
                     Err(broadcast::error::RecvError::Closed) => {
@@ -1174,7 +1192,8 @@ impl KMonitor {
         } else if let Some((_, ws)) = self.current() {
             self.move_to(activity, ws, move_window).await?;
         } else {
-            self.move_to(activity, KWorkspace { x: 1, y: 1 }, move_window).await?;
+            self.move_to(activity, KWorkspace { x: 1, y: 1 }, move_window)
+                .await?;
         }
 
         res
@@ -1209,7 +1228,12 @@ impl KMonitor {
         Ok(())
     }
 
-    async fn move_to(&mut self, activity: String, new_ws: KWorkspace, move_window: bool) -> Result<()> {
+    async fn move_to(
+        &mut self,
+        activity: String,
+        new_ws: KWorkspace,
+        move_window: bool,
+    ) -> Result<()> {
         if let Some((a, ws)) = self.current() {
             if let Some(ai) = self.get_activity_index(&a) {
                 self.activities[ai].last_workspace = Some(ws);
