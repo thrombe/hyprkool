@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -12,11 +14,11 @@ use hyprland::data::Monitors;
 use hyprland::dispatch::MonitorIdentifier;
 use hyprland::dispatch::WorkspaceIdentifierWithSpecial;
 use hyprland::event_listener::AsyncEventListener;
-use hyprland::shared::Address;
+use hyprland::shared::WorkspaceType;
 use hyprland::{
-    data::{Client, Clients, CursorPosition, Workspace},
+    data::{Client, Clients, CursorPosition},
     dispatch::{Dispatch, DispatchType, WindowIdentifier},
-    shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
+    shared::{HyprData, HyprDataActiveOptional},
 };
 use linicon::IconPath;
 use serde::{Deserialize, Serialize};
@@ -44,11 +46,15 @@ pub struct DaemonConfig {
     /// also moves newly added monitors to a valid hyprkool activity
     pub move_monitors_to_hyprkool_activity: bool,
 
+    /// when input:follow_mouse != 1, but you want the focus to change when monitor changes
+    pub focus_last_window_on_monitor_change: bool,
+
     pub mouse: MouseConfig,
 }
 impl Default for DaemonConfig {
     fn default() -> Self {
         Self {
+            focus_last_window_on_monitor_change: false,
             move_monitors_to_hyprkool_activity: true,
             remember_activity_focus: true,
             fallback_commands: true,
@@ -908,6 +914,31 @@ impl State {
                     self.move_monitor_to_valid_activity(name, false).await?;
                 }
             }
+            KEvent::MonitorChange { .. } => {
+                let clients = Clients::get_async().await?.into_iter().collect::<Vec<_>>();
+                tx.send(KInfoEvent::Monitors(self.gather_info(&clients)))?;
+
+                if self.config.daemon.focus_last_window_on_monitor_change {
+                    let m = self.focused_monitor_mut();
+                    let w = if m.monitor.special_workspace.id != 0 {
+                        m.monitor.special_workspace.id
+                    } else {
+                        m.monitor.active_workspace.id
+                    };
+                    let w = clients
+                        .iter()
+                        .filter(|c| w == c.workspace.id)
+                        .min_by_key(|c| c.focus_history_id);
+                    if let Some(w) = w {
+                        let c = CursorPosition::get_async().await?;
+                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
+                            w.address.clone(),
+                        )))
+                        .await?;
+                        Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -917,7 +948,6 @@ impl State {
             | KEvent::WindowOpen
             | KEvent::WindowMoved
             | KEvent::WindowClosed
-            | KEvent::MonitorChange { .. }
             | KEvent::WorkspaceChange
             | KEvent::MonitorAdded { .. }
             | KEvent::MonitorRemoved { .. } => {
@@ -927,6 +957,7 @@ impl State {
             KEvent::Submap { name } => {
                 tx.send(KInfoEvent::Submap(SubmapStatus { submap: name }))?;
             }
+            KEvent::MonitorChange { .. } => {}
         }
         Ok(())
     }
@@ -1055,6 +1086,7 @@ impl State {
                                 icon: None,
                                 address: client.address.to_string(),
                                 focused: client.focus_history_id == 0,
+                                focus_history_id: client.focus_history_id as _,
                             });
                         }
                         row.push(WorkspaceStatus {
@@ -1094,10 +1126,19 @@ enum KEvent {
     WindowMoved,
     WindowClosed,
     WorkspaceChange,
-    MonitorChange { name: String },
-    MonitorAdded { name: String },
-    MonitorRemoved { name: String },
-    Submap { name: String },
+    MonitorChange {
+        name: String,
+        workspace: Option<WorkspaceType>,
+    },
+    MonitorAdded {
+        name: String,
+    },
+    MonitorRemoved {
+        name: String,
+    },
+    Submap {
+        name: String,
+    },
 
     MonitorInfoRequested,
 }
@@ -1217,6 +1258,7 @@ struct WindowStatus {
     icon: Option<PathBuf>,
     address: String,
     focused: bool,
+    focus_history_id: i32,
 }
 
 struct KEventListener {
@@ -1296,6 +1338,7 @@ impl KEventListener {
                 _ = tx
                     .send(KEvent::MonitorChange {
                         name: m.monitor_name,
+                        workspace: m.workspace_name,
                     })
                     .await;
             })
