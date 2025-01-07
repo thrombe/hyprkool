@@ -520,6 +520,7 @@ async fn _send_plugin_event(e: usize) -> Result<bool> {
 struct State {
     config: Config,
     monitors: Vec<KMonitor>,
+    harpoon_map: HashMap<String, String>,
 }
 
 impl State {
@@ -530,7 +531,11 @@ impl State {
             .map(|m| KMonitor::new(m, &config.activities))
             .collect();
 
-        Ok(Self { config, monitors })
+        Ok(Self {
+            config,
+            monitors,
+            harpoon_map: Default::default(),
+        })
     }
 
     fn moved_ws(&self, ws: KWorkspace, wrap: bool, x: i32, y: i32) -> KWorkspace {
@@ -684,14 +689,15 @@ impl State {
         if move_window {
             m.move_focused_window_to_raw(&name).await?;
         }
+        let res = set_workspace_anim(Animation::Fade).await;
         Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
             &m.monitor.name,
         )))
         .await?;
-        Ok(())
+        res
     }
 
-    async fn execute(&mut self, command: Command) -> Result<()> {
+    async fn execute(&mut self, command: Command, tx: Option<mpsc::Sender<KEvent>>) -> Result<()> {
         match command {
             Command::MoveRight { cycle, move_window } => {
                 self.move_towards(1, 0, cycle, move_window).await?;
@@ -849,11 +855,42 @@ impl State {
                 )))
                 .await?;
             }
-            Command::Daemon => todo!(),
-            Command::DaemonQuit => todo!(),
-            Command::Info { .. } => todo!(),
-            Command::SwitchNamedFocus { name, move_window } => todo!(),
-            Command::SetNamedFocus { name } => todo!(),
+            Command::SetNamedFocus { name } => {
+                let w = self
+                    .focused_monitor_mut()
+                    .monitor
+                    .active_workspace
+                    .name
+                    .clone();
+                if self
+                    .harpoon_map
+                    .get(&name)
+                    .map(|ws| &w == ws)
+                    .unwrap_or_default()
+                {
+                    self.harpoon_map.remove(&name);
+                } else {
+                    self.harpoon_map.insert(name, w);
+                }
+                if let Some(tx) = &tx {
+                    tx.send(KEvent::MonitorInfoRequested).await?;
+                }
+            }
+            Command::SwitchNamedFocus { name, move_window } => {
+                match self.harpoon_map.get(&name).cloned() {
+                    Some(ws) => {
+                        let res = set_workspace_anim(Animation::Fade).await;
+                        self.focused_monitor_mut()
+                            .move_to_raw(&ws, move_window)
+                            .await?;
+                        res?;
+                    }
+                    None => return Err(anyhow!("no workspace set to the provided name")),
+                }
+            }
+            Command::Daemon | Command::DaemonQuit | Command::Info { .. } => {
+                return Err(anyhow!("Can't run this command here"))
+            }
         }
 
         Ok(())
@@ -981,6 +1018,18 @@ impl State {
     }
 
     fn gather_info(&mut self, clients: &[Client]) -> Vec<MonitorStatus> {
+        let mut harpoons = HashMap::new();
+        for (k, v) in self.harpoon_map.iter() {
+            if !harpoons.contains_key(v) {
+                harpoons.insert(v.clone(), vec![]);
+            }
+
+            harpoons.get_mut(v).expect("just inserted").push(k.clone());
+        }
+        for (_, ks) in harpoons.iter_mut() {
+            ks.sort();
+        }
+
         let mut monitors = vec![];
         for m in self.monitors.clone().iter() {
             let mut activities = vec![];
@@ -1008,9 +1057,8 @@ impl State {
                         }
                         row.push(WorkspaceStatus {
                             focused: m.monitor.active_workspace.name == ws_name,
+                            named_focus: harpoons.get(&ws_name).cloned().unwrap_or_default(),
                             name: ws_name,
-                            // TODO:
-                            named_focus: vec![],
                             windows,
                         });
                     }
@@ -1346,7 +1394,7 @@ impl KEventListener {
                 });
             }
             Message::Command(command) => {
-                match state.execute(command).await {
+                match state.execute(command, Some(kevent_tx.clone())).await {
                     Ok(_) => {
                         sock.write_all(&Message::IpcOk.msg()).await?;
                     }
@@ -1529,6 +1577,33 @@ impl KMonitor {
             ))
             .await?;
         }
+
+        Ok(())
+    }
+
+    async fn move_to_raw(&mut self, ws_name: &str, move_window: bool) -> Result<()> {
+        if let Some((a, ws)) = self.current() {
+            if let Some(ai) = self.get_activity_index(&a) {
+                self.activities[ai].last_workspace = Some(ws);
+            }
+        };
+
+        if move_window {
+            self.move_focused_window_to_raw(ws_name).await?;
+        }
+
+        if !self.monitor.focused {
+            Dispatch::call_async(DispatchType::Custom(
+                "focusmonitor",
+                &format!("{}", self.monitor.id),
+            ))
+            .await?;
+        }
+        Dispatch::call_async(DispatchType::Custom(
+            "focusworkspaceoncurrentmonitor",
+            &format!("name:{}", ws_name),
+        ))
+        .await?;
 
         Ok(())
     }
@@ -1784,7 +1859,7 @@ async fn main() -> Result<()> {
                     return Ok(());
                 }
             };
-            state.execute(cmd).await?;
+            state.execute(cmd, None).await?;
         }
     }
 
