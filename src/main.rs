@@ -663,11 +663,11 @@ impl State {
             .current()
             .context("not in a hyprkool workspace")?;
         let ws = self.moved_ws(ws, cycle, x, y);
-        let res = KWorkspace::set_anim(x, y).await;
+        _ = KWorkspace::set_anim(x, y).await;
         self.focused_monitor_mut()
             .move_to(a, ws, move_window)
             .await?;
-        res
+        Ok(())
     }
 
     async fn cycle_activity(&mut self, z: i32, cycle: bool, move_window: bool) -> Result<()> {
@@ -709,12 +709,12 @@ impl State {
         if move_window {
             m.move_focused_window_to_raw(&name).await?;
         }
-        let res = set_workspace_anim(Animation::Fade).await;
+        _ = set_workspace_anim(Animation::Fade).await;
         Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
             &m.monitor.name,
         )))
         .await?;
-        res
+        Ok(())
     }
 
     async fn execute(&mut self, command: Command, tx: Option<mpsc::Sender<KEvent>>) -> Result<()> {
@@ -839,20 +839,18 @@ impl State {
                     .context("not in hyprkool activity")?;
                 let ws =
                     KWorkspace::from_ws_part_of_name(&name).context("invalid workspace name")?;
-                let res = set_workspace_anim(Animation::Fade).await;
+                _ = set_workspace_anim(Animation::Fade).await;
                 self.focused_monitor_mut()
                     .move_to(a, ws, move_window)
                     .await?;
-                res?;
             }
             Command::SwitchToWorkspace { name, move_window } => {
                 let a = KActivity::from_ws_name(&name).context("activity not found")?;
                 let ws = KWorkspace::from_ws_name(&name).context("workspace not found")?;
-                let res = set_workspace_anim(Animation::Fade).await;
+                _ = set_workspace_anim(Animation::Fade).await;
                 self.focused_monitor_mut()
                     .move_to(a.name, ws, move_window)
                     .await?;
-                res?;
             }
             Command::NextMonitor { cycle, move_window } => {
                 self.cycle_monitor(1, cycle, move_window).await?;
@@ -968,11 +966,10 @@ impl State {
             Command::SwitchNamedFocus { name, move_window } => {
                 match self.harpoon_map.get(&name).cloned() {
                     Some(ws) => {
-                        let res = set_workspace_anim(Animation::Fade).await;
+                        _ = set_workspace_anim(Animation::Fade).await;
                         self.focused_monitor_mut()
                             .move_to_raw(&ws, move_window)
                             .await?;
-                        res?;
                     }
                     None => return Err(anyhow!("no workspace set to the provided name")),
                 }
@@ -1666,7 +1663,7 @@ impl KMonitor {
     }
 
     async fn move_to_activity(&mut self, activity: String, move_window: bool) -> Result<()> {
-        let res = set_workspace_anim(Animation::Fade).await;
+        _ = set_workspace_anim(Animation::Fade).await;
 
         if let Some(ws) = self
             .get_activity_index(&activity)
@@ -1681,7 +1678,7 @@ impl KMonitor {
                 .await?;
         }
 
-        res
+        Ok(())
     }
 
     async fn toggle_overview(&mut self) -> Result<()> {
