@@ -1,4 +1,5 @@
 
+#include <exception>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -7,13 +8,18 @@
 #include <filesystem>
 
 #include "overview.hpp"
+#include "src/Compositor.hpp"
+#include "src/SharedDefs.hpp"
+#include "src/macros.hpp"
 #include "utils.hpp"
 
 #ifndef VERSION
 #define VERSION ""
 #endif
 
+// TODO: overview only works on one monitor. overview resets when workspace changes on any monitor
 bool overview_enabled = false;
+MONITORID overview_monitor_id = MONITOR_INVALID;
 void handle_plugin_event(PluginEvent e) {
     switch (e) {
         default: {
@@ -187,6 +193,10 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
             // CBox box = CBox(50, 50, 100.0, 100.0);
             // g_pHyprOpenGL->renderRectWithBlur(&box, CHyprColor(0.3, 0.0, 0.0, 0.3));
             overview_enabled = false;
+            g_go = {};
+
+            // NOTE: call these only after g_pHyprOpenGL->m_RenderData.pMonitor is set
+            g_go.init();
             g_go.render();
             overview_enabled = true;
             // TODO: damaging entire window fixes the weird areas - but is inefficient
@@ -214,10 +224,10 @@ void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
 
 void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto const ws = std::any_cast<CSharedPointer<CWorkspace>>(args);
-    if (ws->m_szName.ends_with(":overview")) {
-        g_go = {};
-        g_go.init();
+    auto m = g_pCompositor->getMonitorFromCursor();
+    if (std::regex_match(ws->m_szName, overview_pattern)) {
         overview_enabled = true;
+        overview_monitor_id = m->ID;
     } else {
         overview_enabled = false;
     }
@@ -232,38 +242,48 @@ void safe_on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
-void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
-    auto const w = std::any_cast<PHLWINDOW>(args);
-    if (!w) {
-        return;
-    }
-    if (overview_enabled) {
-        auto m = g_pCompositor->getMonitorFromCursor();
-        auto& w = m->activeWorkspace;
-        if (std::regex_match(w->m_szName, overview_pattern)) {
-            auto ss = std::istringstream(w->m_szName);
-            std::string activity;
-            std::string pos;
-            std::getline(ss, activity, ':');
-            std::getline(ss, pos, ':');
-            HyprlandAPI::invokeHyprctlCommand("dispatch", "movetoworkspace name:" + activity + ":" + pos);
-        }
-        overview_enabled = false;
-    }
-}
-void safe_on_window(void* thisptr, SCallbackInfo& info, std::any args) {
-    try {
-        on_window(thisptr, info, args);
-    } catch (const std::exception& e) {
-        err_notif(e.what());
-        overview_enabled = false;
-    }
-}
+// void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
+//     auto const w = std::any_cast<PHLWINDOW>(args);
+//     if (!w) {
+//         return;
+//     }
+//     if (!overview_enabled) {
+//         return;
+//     }
+
+//     auto m = g_pCompositor->getMonitorFromCursor();
+//     auto& ws = m->activeWorkspace;
+//     if (std::regex_match(ws->m_szName, overview_pattern)) {
+//         auto ss = std::istringstream(ws->m_szName);
+//         std::string activity;
+//         std::string pos;
+//         std::getline(ss, activity, ':');
+//         std::getline(ss, pos, ':');
+//         HyprlandAPI::invokeHyprctlCommand("dispatch", "movetoworkspace name:" + activity + ":" + pos);
+//     }
+//     overview_enabled = false;
+// }
+// void safe_on_window(void* thisptr, SCallbackInfo& info, std::any args) {
+//     try {
+//         on_window(thisptr, info, args);
+//     } catch (const std::exception& e) {
+//         err_notif(e.what());
+//         overview_enabled = false;
+//     }
+// }
 
 void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (!overview_enabled) {
         return;
     }
+    auto mc = g_pCompositor->getMonitorFromCursor();
+    if (!mc) {
+        return;
+    }
+    if (mc->ID != overview_monitor_id) {
+        return;
+    }
+
     const auto e = std::any_cast<IPointer::SButtonEvent>(args);
     if (e.button != BTN_LEFT) {
         return;
@@ -319,7 +339,7 @@ void init_hooks() {
 
     render_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
     workspace_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", safe_on_workspace);
-    activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", safe_on_window);
+    // activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", safe_on_window);
     mousebutton_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", safe_on_mouse_button);
 
     auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");

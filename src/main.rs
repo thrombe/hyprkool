@@ -1,132 +1,40 @@
-use std::{path::PathBuf, sync::Arc, time::Duration};
+#![allow(dead_code)]
 
-use anyhow::{anyhow, Result};
-use clap::{arg, command, Parser};
-use serde::{Deserialize, Serialize};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
-    net::UnixStream,
-    sync::Mutex,
-};
+use std::time::Duration;
 
-use crate::{
-    command::Command,
-    config::Config,
-    daemon::{IpcDaemon, MouseDaemon},
-    info::InfoOutputStream,
-    state::State,
-};
+use anyhow::Result;
+use clap::Parser;
+use tokio::io::BufWriter;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixStream;
 
 mod command;
 mod config;
-mod daemon;
+mod event;
 mod info;
 mod state;
 
-#[derive(Parser, Debug, Clone)]
-#[command(author, version, about)]
-struct Cli {
-    /// Specify a custom config directory
-    #[arg(short, long)]
-    pub config_dir: Option<String>,
-
-    #[command(subcommand)]
-    pub command: Command,
-
-    /// don't use daemon for this command even if one is active (mainly useful for debugging)
-    #[arg(long)]
-    pub force_no_daemon: bool,
-}
-
-impl Cli {
-    fn config(&self) -> Result<Config> {
-        let config = self
-            .config_dir
-            .clone()
-            .map(PathBuf::from)
-            .or(dirs::config_dir().map(|pb| pb.join("hypr")))
-            .map(|pb| pb.join("hyprkool.toml"))
-            .filter(|p| p.exists())
-            .map(std::fs::read_to_string)
-            .transpose()?
-            .map(|s| toml::from_str::<Config>(&s))
-            .transpose()?
-            .unwrap_or(Config::default());
-        match config.workspaces {
-            (0, _) | (_, 0) => {
-                return Err(anyhow!("Use non zero workspace grid dimentions in config"));
-            }
-            _ => (),
-        }
-        Ok(config)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub enum Message {
-    IpcOk,
-    IpcErr(String),
-    IpcMessage(String),
-    Command(Command),
-}
-impl Message {
-    fn msg(&self) -> Vec<u8> {
-        serde_json::to_string(self).unwrap().into_bytes()
-    }
-}
+use command::Command;
+use config::Cli;
+use event::daemon;
+use event::get_socket_path;
+use event::Message;
+use state::State;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let sock_path = daemon::get_socket_path()?;
+    let sock_path = get_socket_path()?;
 
     match cli.command.clone() {
-        Command::Daemon {
-            move_to_hyprkool_activity,
-        } => {
+        Command::Daemon => {
             if cli.force_no_daemon {
                 println!("--force-no-daemon not allowed with this command");
                 return Ok(());
             }
 
-            let state = match State::new(cli.config()?) {
-                Ok(s) => s,
-                Err(e) => {
-                    println!("{}", e);
-                    return Ok(());
-                }
-            };
-            let state = Arc::new(Mutex::new(state));
-            let mut md = MouseDaemon::new(state.clone()).await?;
-            let id = IpcDaemon::new(state.clone()).await?;
-            let mut id_fut = std::pin::pin!(id.run());
-
-            loop {
-                tokio::select! {
-                    mouse = md.run(move_to_hyprkool_activity) => {
-                        match mouse {
-                            Ok(_) => {
-                                break;
-                            }
-                            Err(e) => {
-                                println!("{}", e);
-                            }
-                        }
-                    }
-                    ipc = &mut id_fut => {
-                        match ipc {
-                            Ok(_) => {
-                                break;
-                            }
-                            Err(e) => {
-                                println!("{}", e);
-                                id_fut.set(id.run());
-                            }
-                        }
-                    }
-                }
-            }
+            daemon(cli.config()?).await?;
             println!("exiting daemon");
         }
         Command::Info { command, monitor } => {
@@ -153,6 +61,10 @@ async fn main() -> Result<()> {
                             return Ok(());
                         }
 
+                        if line.is_empty() {
+                            continue;
+                        }
+
                         let command = serde_json::from_str(&line)?;
                         match command {
                             Message::IpcMessage(message) => {
@@ -175,27 +87,27 @@ async fn main() -> Result<()> {
                 dbg!("falling back to stateless commands");
             }
 
-            let state = match State::new(cli.config()?) {
-                Ok(s) => s,
-                Err(e) => {
-                    println!("{}", e);
-                    return Ok(());
-                }
-            };
-            command
-                .execute(
-                    InfoOutputStream::Stdout,
-                    Arc::new(Mutex::new(state)),
-                    monitor,
-                )
-                .await?;
+            // let state = match State::new(cli.config()?) {
+            //     Ok(s) => s,
+            //     Err(e) => {
+            //         println!("{}", e);
+            //         return Ok(());
+            //     }
+            // };
+            // command
+            //     .execute(
+            //         InfoOutputStream::Stdout,
+            //         Arc::new(Mutex::new(state)),
+            //         monitor,
+            //     )
+            //     .await?;
+            todo!("info command are currently only supported with the daemon running. run 'hyprkool daemon'");
         }
-        comm => {
+        cmd => {
             if !cli.force_no_daemon {
                 if let Ok(sock) = UnixStream::connect(&sock_path).await {
                     let mut sock = BufWriter::new(sock);
-                    sock.write_all(&Message::Command(comm.clone()).msg())
-                        .await?;
+                    sock.write_all(&Message::Command(cmd.clone()).msg()).await?;
                     sock.flush().await?;
                     sock.shutdown().await?;
 
@@ -233,14 +145,14 @@ async fn main() -> Result<()> {
                 println!("falling back to stateless commands");
             }
 
-            let state = match State::new(cli.config()?) {
+            let mut state = match State::new(cli.config()?).await {
                 Ok(s) => s,
                 Err(e) => {
                     println!("{}", e);
                     return Ok(());
                 }
             };
-            comm.execute(Arc::new(Mutex::new(state)), false).await?;
+            state.execute(cmd, None).await?;
         }
     }
 
