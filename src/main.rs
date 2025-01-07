@@ -328,13 +328,13 @@ pub enum Command {
         move_window: bool,
     },
     SwapMonitorsActiveWorkspace {
-        /// name of 1st monitor
+        /// name of 1st monitor (only necessary if you have more than 2 monitors)
         #[arg(long, short = 'm')]
-        monitor_1: String,
+        monitor_1: Option<String>,
 
-        /// name of 2nd monitor
+        /// name of 2nd monitor (only necessary if you have more than 2 monitors)
         #[arg(long, short = 'n')]
-        monitor_2: String,
+        monitor_2: Option<String>,
 
         /// move focused window and swap workspaces
         #[arg(long, short = 'w', default_value_t = false)]
@@ -881,9 +881,21 @@ impl State {
                 monitor_2,
                 move_window,
             } => {
-                if monitor_1 == monitor_2 {
+                if monitor_1 == monitor_2 && monitor_1.is_some() {
                     return Ok(());
                 }
+                let (monitor_1, monitor_2) = match (monitor_1, monitor_2) {
+                    (None, Some(_)) | (Some(_), None) => {
+                        return Err(anyhow!("you need to pass either no or both monitor names"));
+                    },
+                    (None, None) => {
+                        if self.monitors.len() != 2 {
+                            return Err(anyhow!("you don't have exactly 2 monitors. you must pass names of both monitors"));
+                        }
+                        (self.monitors[0].monitor.name.clone(), self.monitors[1].monitor.name.clone())
+                    },
+                    (Some(monitor_1), Some(monitor_2)) => (monitor_1, monitor_2),
+                };
 
                 let ws1 = self
                     .monitors
