@@ -898,10 +898,10 @@ impl State {
         Ok(())
     }
 
+    #[allow(clippy::single_match)]
     async fn update(&mut self, event: KEvent, tx: broadcast::Sender<KInfoEvent>) -> Result<()> {
         self.update_monitors().await?;
 
-        #[allow(clippy::single_match)]
         match &event {
             KEvent::MonitorAdded { name } => {
                 if self.config.daemon.move_monitors_to_hyprkool_activity {
@@ -917,7 +917,7 @@ impl State {
             | KEvent::WindowOpen
             | KEvent::WindowMoved
             | KEvent::WindowClosed
-            | KEvent::MonitorChange
+            | KEvent::MonitorChange { .. }
             | KEvent::WorkspaceChange
             | KEvent::MonitorAdded { .. }
             | KEvent::MonitorRemoved { .. } => {
@@ -1094,7 +1094,7 @@ enum KEvent {
     WindowMoved,
     WindowClosed,
     WorkspaceChange,
-    MonitorChange,
+    MonitorChange { name: String },
     MonitorAdded { name: String },
     MonitorRemoved { name: String },
     Submap { name: String },
@@ -1290,10 +1290,14 @@ impl KEventListener {
             })
         });
         let tx = _tx.clone();
-        el.add_active_monitor_change_handler(move |_m| {
+        el.add_active_monitor_change_handler(move |m| {
             let tx = tx.clone();
             Box::pin(async move {
-                _ = tx.send(KEvent::MonitorChange).await;
+                _ = tx
+                    .send(KEvent::MonitorChange {
+                        name: m.monitor_name,
+                    })
+                    .await;
             })
         });
         let tx = _tx.clone();
