@@ -87,12 +87,11 @@ impl Default for MouseConfig {
 
 #[derive(Deserialize, Debug, Clone)]
 pub enum MultiMonitorStrategy {
-    // all monitors share a common hyprkool workspace (same x y) acitvity:(x y w)
-    SeparateWorkspaces,
+    // a 'workspace' spans across all monitors. (changing workspace will change it on all monitors)
+    Span,
 
     // activity:(x y)
-    SharedWorkspacesSyncActivities, // m1:a1w1 m2:a2w2 -> m1:a2w1 m2:a2w2 when switching activities
-    SharedWorkspacesUnsyncActivities,
+    Free,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -113,7 +112,7 @@ impl Default for Config {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
-            multi_monitor_strategy: MultiMonitorStrategy::SharedWorkspacesUnsyncActivities,
+            multi_monitor_strategy: MultiMonitorStrategy::Free,
             named_focii: Default::default(),
             daemon: Default::default(),
             icon_theme: None,
@@ -887,13 +886,16 @@ impl State {
                 let (monitor_1, monitor_2) = match (monitor_1, monitor_2) {
                     (None, Some(_)) | (Some(_), None) => {
                         return Err(anyhow!("you need to pass either no or both monitor names"));
-                    },
+                    }
                     (None, None) => {
                         if self.monitors.len() != 2 {
                             return Err(anyhow!("you don't have exactly 2 monitors. you must pass names of both monitors"));
                         }
-                        (self.monitors[0].monitor.name.clone(), self.monitors[1].monitor.name.clone())
-                    },
+                        (
+                            self.monitors[0].monitor.name.clone(),
+                            self.monitors[1].monitor.name.clone(),
+                        )
+                    }
                     (Some(monitor_1), Some(monitor_2)) => (monitor_1, monitor_2),
                 };
 
@@ -986,6 +988,8 @@ impl State {
     #[allow(clippy::single_match)]
     async fn update(&mut self, event: KEvent, tx: broadcast::Sender<KInfoEvent>) -> Result<()> {
         self.update_monitors().await?;
+
+        println!("{:?}", &event);
 
         match &event {
             KEvent::MonitorAdded { name } => {
@@ -1367,7 +1371,6 @@ impl KEventListener {
 
     fn hl_event_listener(_tx: mpsc::Sender<KEvent>) -> Result<AsyncEventListener> {
         let mut el = AsyncEventListener::new();
-        // TODO: subscribe all required events and fire events in channel
         let tx = _tx.clone();
         el.add_sub_map_changed_handler(move |name| {
             let tx = tx.clone();
@@ -1937,7 +1940,7 @@ async fn main() -> Result<()> {
             //         monitor,
             //     )
             //     .await?;
-            todo!();
+            todo!("info command are currently only supported with the daemon running. run 'hyprkool daemon'");
         }
         cmd => {
             if !cli.force_no_daemon {
