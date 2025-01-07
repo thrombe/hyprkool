@@ -1248,28 +1248,28 @@ impl KEventListener {
         let mut el = AsyncEventListener::new();
         // TODO: subscribe all required events and fire events in channel
         let tx = _tx.clone();
-        el.add_sub_map_change_handler(move |name| {
+        el.add_sub_map_changed_handler(move |name| {
             let tx = tx.clone();
             Box::pin(async move {
                 _ = tx.send(KEvent::Submap { name }).await;
             })
         });
         let tx = _tx.clone();
-        el.add_workspace_change_handler(move |_w| {
+        el.add_workspace_changed_handler(move |_w| {
             let tx = tx.clone();
             Box::pin(async move {
                 _ = tx.send(KEvent::WorkspaceChange).await;
             })
         });
         let tx = _tx.clone();
-        el.add_active_window_change_handler(move |_w| {
+        el.add_active_window_changed_handler(move |_w| {
             let tx = tx.clone();
             Box::pin(async move {
                 _ = tx.send(KEvent::WindowChange).await;
             })
         });
         let tx = _tx.clone();
-        el.add_window_open_handler(move |_w| {
+        el.add_window_opened_handler(move |_w| {
             let tx = tx.clone();
             Box::pin(async move {
                 _ = tx.send(KEvent::WindowOpen).await;
@@ -1283,14 +1283,14 @@ impl KEventListener {
             })
         });
         let tx = _tx.clone();
-        el.add_window_close_handler(move |_w| {
+        el.add_window_closed_handler(move |_w| {
             let tx = tx.clone();
             Box::pin(async move {
                 _ = tx.send(KEvent::WindowClosed).await;
             })
         });
         let tx = _tx.clone();
-        el.add_active_monitor_change_handler(move |m| {
+        el.add_active_monitor_changed_handler(move |m| {
             let tx = tx.clone();
             Box::pin(async move {
                 _ = tx
@@ -1301,10 +1301,10 @@ impl KEventListener {
             })
         });
         let tx = _tx.clone();
-        el.add_monitor_added_handler(move |name| {
+        el.add_monitor_added_handler(move |m| {
             let tx = tx.clone();
             Box::pin(async move {
-                _ = tx.send(KEvent::MonitorAdded { name }).await;
+                _ = tx.send(KEvent::MonitorAdded { name: m.name }).await;
             })
         });
         let tx = _tx.clone();
