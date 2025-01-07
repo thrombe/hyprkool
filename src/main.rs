@@ -611,8 +611,8 @@ impl State {
         }
 
         'outer: for a in self.config.activities.iter() {
-            for x in 0..self.config.workspaces.0 {
-                for y in 0..self.config.workspaces.1 {
+            for y in 1..=self.config.workspaces.1 {
+                for x in 1..=self.config.workspaces.0 {
                     let ws = KWorkspace { x, y };
                     if taken.contains(&ws.name(a, false)) {
                         continue;
@@ -629,10 +629,12 @@ impl State {
         }
 
         // focus the monitor that was focused before moving the other monitor to another ws
-        if let Some((a, ws)) = self.focused_monitor_mut().current() {
-            self.focused_monitor_mut().move_to(a, ws, false).await?;
-            Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
-        }
+        Dispatch::call_async(DispatchType::Custom(
+            "focusmonitor",
+            &self.focused_monitor_mut().monitor.name.to_string(),
+        ))
+        .await?;
+        Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
 
         Ok(())
     }
