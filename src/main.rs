@@ -9,6 +9,7 @@ use clap::{arg, command, Parser, Subcommand};
 use hyprland::data::FullscreenMode;
 use hyprland::data::Monitor;
 use hyprland::data::Monitors;
+use hyprland::dispatch::MonitorIdentifier;
 use hyprland::dispatch::WorkspaceIdentifierWithSpecial;
 use hyprland::event_listener::AsyncEventListener;
 use hyprland::shared::Address;
@@ -301,6 +302,31 @@ pub enum Command {
         name: String,
 
         /// move focused window and move to workspace
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
+    },
+    NextMonitor {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+
+        /// move focused window and move to monitor
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
+    },
+    PrevMonitor {
+        #[arg(long, short, default_value_t = false)]
+        cycle: bool,
+
+        /// move focused window and move to monitor
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
+    },
+    SwitchToMonitor {
+        /// <monitor name> (see `hyprctl monitors`)
+        #[arg(short, long)]
+        name: String,
+
+        /// move focused window and move to monitor
         #[arg(long, short = 'w', default_value_t = false)]
         move_window: bool,
     },
@@ -640,6 +666,31 @@ impl State {
         Ok(())
     }
 
+    async fn cycle_monitor(&mut self, z: i32, cycle: bool, move_window: bool) -> Result<()> {
+        let mut mi = self
+            .monitors
+            .iter()
+            .position(|m| m.monitor.focused)
+            .context("no monitor focused :|")? as i32;
+        mi += z;
+        if cycle {
+            mi += self.monitors.len() as i32;
+            mi %= self.monitors.len() as i32;
+        } else {
+            mi = mi.min(self.monitors.len() as i32 - 1).max(0);
+        }
+        let m = &mut self.monitors[mi as usize];
+        let name = m.monitor.active_workspace.name.clone();
+        if move_window {
+            m.move_focused_window_to_raw(&name).await?;
+        }
+        Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
+            &m.monitor.name,
+        )))
+        .await?;
+        Ok(())
+    }
+
     async fn execute(&mut self, command: Command) -> Result<()> {
         match command {
             Command::MoveRight { cycle, move_window } => {
@@ -777,9 +828,30 @@ impl State {
                     .await?;
                 res?;
             }
+            Command::NextMonitor { cycle, move_window } => {
+                self.cycle_monitor(1, cycle, move_window).await?;
+            }
+            Command::PrevMonitor { cycle, move_window } => {
+                self.cycle_monitor(-1, cycle, move_window).await?;
+            }
+            Command::SwitchToMonitor { name, move_window } => {
+                let m = self
+                    .monitors
+                    .iter()
+                    .find(|m| m.monitor.name == name)
+                    .context("monitor with provided name does not exist")?;
+                if move_window {
+                    m.move_focused_window_to_raw(&m.monitor.active_workspace.name)
+                        .await?;
+                }
+                Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
+                    &m.monitor.name,
+                )))
+                .await?;
+            }
             Command::Daemon => todo!(),
             Command::DaemonQuit => todo!(),
-            Command::Info { command, monitor } => todo!(),
+            Command::Info {..} => todo!(),
             Command::SwitchNamedFocus { name, move_window } => todo!(),
             Command::SetNamedFocus { name } => todo!(),
         }
@@ -1489,7 +1561,7 @@ impl KMonitor {
         Ok(())
     }
 
-    async fn move_focused_window_to(&mut self, activity: &str, ws: KWorkspace) -> Result<()> {
+    async fn move_focused_window_to(&self, activity: &str, ws: KWorkspace) -> Result<()> {
         if let Some(_window) = Client::get_active_async().await? {
             Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
                 WorkspaceIdentifierWithSpecial::Name(&ws.name(activity, false)),
@@ -1501,7 +1573,7 @@ impl KMonitor {
         Ok(())
     }
 
-    async fn move_focused_window_to_raw(&mut self, ws: &str) -> Result<()> {
+    async fn move_focused_window_to_raw(&self, ws: &str) -> Result<()> {
         if let Some(_window) = Client::get_active_async().await? {
             Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
                 WorkspaceIdentifierWithSpecial::Name(ws),
