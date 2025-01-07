@@ -327,6 +327,19 @@ pub enum Command {
         #[arg(long, short = 'w', default_value_t = false)]
         move_window: bool,
     },
+    SwapMonitorsActiveWorkspace {
+        /// name of 1st monitor
+        #[arg(long, short = 'm')]
+        monitor_1: String,
+
+        /// name of 2nd monitor
+        #[arg(long, short = 'n')]
+        monitor_2: String,
+
+        /// move focused window and swap workspaces
+        #[arg(long, short = 'w', default_value_t = false)]
+        move_window: bool,
+    },
     SwitchToMonitor {
         /// <monitor name> (see `hyprctl monitors`)
         #[arg(short, long)]
@@ -862,6 +875,60 @@ impl State {
                     &m.monitor.name,
                 )))
                 .await?;
+            }
+            Command::SwapMonitorsActiveWorkspace {
+                monitor_1,
+                monitor_2,
+                move_window,
+            } => {
+                if monitor_1 == monitor_2 {
+                    return Ok(());
+                }
+
+                let ws1 = self
+                    .monitors
+                    .iter()
+                    .find(|m| m.monitor.name == monitor_1)
+                    .context("monitor_1 does not exist")?
+                    .monitor
+                    .active_workspace
+                    .name
+                    .clone();
+                let ws2 = self
+                    .monitors
+                    .iter()
+                    .find(|m| m.monitor.name == monitor_2)
+                    .context("monitor_2 does not exist")?
+                    .monitor
+                    .active_workspace
+                    .name
+                    .clone();
+                let m = self.focused_monitor_mut();
+                if m.monitor.name == monitor_1 {
+                    self.focused_monitor_mut()
+                        .move_to_raw(&ws2, move_window)
+                        .await?;
+                } else if m.monitor.name == monitor_2 {
+                    self.focused_monitor_mut()
+                        .move_to_raw(&ws1, move_window)
+                        .await?;
+                } else {
+                    // if move_window {
+                    //     return Err(anyhow!("--move_window is only supported when one of the monitors is focused"));
+                    // }
+
+                    let m_1 = self
+                        .monitors
+                        .iter_mut()
+                        .find(|m| m.monitor.name == monitor_1)
+                        .expect("won't get here if it's none");
+                    m_1.move_to_raw(&ws2, false).await?;
+
+                    Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
+                        &self.focused_monitor_mut().monitor.name,
+                    )))
+                    .await?;
+                }
             }
             Command::SetNamedFocus { name } => {
                 let w = self
