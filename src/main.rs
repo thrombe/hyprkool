@@ -86,21 +86,11 @@ impl Default for MouseConfig {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub enum MultiMonitorStrategy {
-    // a 'workspace' spans across all monitors. (changing workspace will change it on all monitors)
-    Linked,
-
-    // activity:(x y)
-    Independent,
-}
-
-#[derive(Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub activities: Vec<String>,
     /// number of workspaces in x and y dimensions
     pub workspaces: (i32, i32),
-    pub multi_monitor_strategy: MultiMonitorStrategy,
     pub named_focii: HashMap<String, String>,
     pub daemon: DaemonConfig,
 
@@ -112,7 +102,6 @@ impl Default for Config {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
-            multi_monitor_strategy: MultiMonitorStrategy::Independent,
             named_focii: Default::default(),
             daemon: Default::default(),
             icon_theme: None,
