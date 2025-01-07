@@ -88,10 +88,10 @@ impl Default for MouseConfig {
 #[derive(Deserialize, Debug, Clone)]
 pub enum MultiMonitorStrategy {
     // a 'workspace' spans across all monitors. (changing workspace will change it on all monitors)
-    Span,
+    Linked,
 
     // activity:(x y)
-    Free,
+    Independent,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -112,7 +112,7 @@ impl Default for Config {
         Self {
             activities: vec!["default".into()],
             workspaces: (2, 2),
-            multi_monitor_strategy: MultiMonitorStrategy::Free,
+            multi_monitor_strategy: MultiMonitorStrategy::Independent,
             named_focii: Default::default(),
             daemon: Default::default(),
             icon_theme: None,
@@ -486,7 +486,13 @@ pub async fn is_plugin_running() -> Result<bool> {
 }
 
 pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
-    _send_plugin_event(anim as _).await?;
+    match _send_plugin_event(anim as _).await {
+        Ok(_) => {},
+        Err(err) => {
+            println!("could not set workspace animation: {:?}", err);
+            return Err(err);
+        },
+    }
     Ok(())
 }
 
