@@ -851,7 +851,7 @@ impl State {
             }
             Command::Daemon => todo!(),
             Command::DaemonQuit => todo!(),
-            Command::Info {..} => todo!(),
+            Command::Info { .. } => todo!(),
             Command::SwitchNamedFocus { name, move_window } => todo!(),
             Command::SetNamedFocus { name } => todo!(),
         }
@@ -1313,19 +1313,19 @@ impl KEventListener {
         kevent_tx: &mpsc::Sender<KEvent>,
         kinfo_event_tx: &broadcast::Sender<KInfoEvent>,
         info_ctx: Arc<Mutex<InfoCommandContext>>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let mut sock = BufReader::new(stream);
         let mut line = String::new();
         sock.read_line(&mut line).await?;
         if line.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
         let message = serde_json::from_str::<Message>(&line)?;
         match message {
             Message::Command(Command::DaemonQuit) => {
                 sock.write_all(&Message::IpcOk.msg()).await?;
                 sock.flush().await?;
-                return Ok(());
+                return Ok(true);
             }
             Message::Command(Command::Info { command, monitor }) => {
                 let tx = kevent_tx.clone();
@@ -1362,7 +1362,7 @@ impl KEventListener {
             }
         }
 
-        Ok(())
+        Ok(false)
     }
 }
 
@@ -1428,7 +1428,11 @@ async fn daemon(config: Config) -> Result<()> {
                 match event {
                     Ok((stream, _addr)) => {
                         match KEventListener::process_ipc_conn(stream, &mut state, &el.event_tx, &el.info_event_tx, info_ctx.clone()).await {
-                            Ok(()) => {},
+                            Ok(quit) => {
+                                if quit {
+                                    break Ok(());
+                                }
+                            },
                             Err(e) => println!("error during ipc connection: {:?}", e),
                         }
                     },
