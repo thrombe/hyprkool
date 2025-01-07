@@ -209,8 +209,8 @@ impl InfoCommand {
         // NOTE: DO NOT return errors other than socket errors
 
         if let Err(e) = self.fire_events(tx).await {
-            println!("error when firing info events: {e}");
-            sock.write_all(&Message::IpcErr(format!("error: {:?}", e)).msg())
+            println!("error when firing info events: {:?}", e);
+            sock.write_all(&Message::IpcErr(format!("error: {}", e)).msg())
                 .await?;
             sock.flush().await?;
             return Ok(());
@@ -223,8 +223,8 @@ impl InfoCommand {
                 }
                 Ok(None) => {}
                 Err(e) => {
-                    println!("error when listening for info messages: {e}");
-                    sock.write_all(&Message::IpcErr(format!("error: {:?}", e)).msg())
+                    println!("error when listening for info messages: {:?}", e);
+                    sock.write_all(&Message::IpcErr(format!("error: {}", e)).msg())
                         .await?;
                 }
             }
@@ -1527,7 +1527,8 @@ impl KEventListener {
                         sock.write_all(&Message::IpcOk.msg()).await?;
                     }
                     Err(e) => {
-                        sock.write_all(&Message::IpcErr(format!("error: {:?}", e)).msg())
+                        println!("error when executing command: {:?}", e);
+                        sock.write_all(&Message::IpcErr(format!("error: {}", e)).msg())
                             .await?;
                     }
                 }
