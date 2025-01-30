@@ -2,7 +2,10 @@
 
 #include <ctime>
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/helpers/WLClasses.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 
 typedef void (*FuncRenderWindow)(void*, PHLWINDOW, PHLMONITOR, timespec*, bool, eRenderPassMode, bool, bool);
 extern void* renderWindow;

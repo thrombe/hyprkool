@@ -1,6 +1,5 @@
 #include <hyprland/src/Compositor.hpp>
-#include <hyprland/src/managers/input/InputManager.hpp>
-#include <hyprland/src/plugins/PluginAPI.hpp>
+#include <hyprland/src/render/OpenGL.hpp>
 #include <wlr-layer-shell-unstable-v1.hpp>
 
 #include "overview.hpp"
@@ -114,7 +113,7 @@ void OverviewWorkspace::render_border(CBox bbox, CHyprColor col, int border_size
     bbox.h = std::max(bbox.h, 1.0);
     CGradientValueData grad = {col};
 
-    g_pHyprOpenGL->renderBorder(&bbox, grad, 0, border_size);
+    g_pHyprOpenGL->renderBorder(bbox, grad, 0, 0, border_size);
 }
 
 void GridOverview::init() {
@@ -189,7 +188,7 @@ void GridOverview::render() {
     g_pHyprOpenGL->m_RenderData.clipBox = box;
     g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
 
-    g_pHyprOpenGL->renderRectWithBlur(&box, CHyprColor(0.0, 0.0, 0.0, 1.0));
+    g_pHyprOpenGL->renderRectWithBlur(box, CHyprColor(0.0, 0.0, 0.0, 1.0));
 
     for (auto& ow : workspaces) {
         ow.render(box, &time);
