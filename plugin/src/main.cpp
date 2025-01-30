@@ -130,7 +130,7 @@ void safe_socket_serve() {
 inline CFunctionHook* g_pWorkAnimHook = nullptr;
 typedef void (*origStartAnim)(CWorkspace*, bool, bool, bool);
 void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
-    SAnimationPropertyConfig* conf = (thisptr->m_fAlpha.getConfig());
+    Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = thisptr->m_fAlpha->getConfig();
     std::string style = conf->pValues->internalStyle;
 
     switch (anim_dir) {
@@ -190,7 +190,7 @@ void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
             g_go.render();
             overview_enabled = true;
             // TODO: damaging entire window fixes the weird areas - but is inefficient
-            g_pHyprRenderer->damageBox(&g_go.box);
+            g_pHyprRenderer->damageBox(g_go.box);
         } break;
         case eRenderStage::RENDER_POST_WINDOWS: {
         } break;
