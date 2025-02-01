@@ -7,7 +7,7 @@
 
     hyprland = {
       url = "https://github.com/hyprwm/Hyprland";
-      ref = "refs/tags/v0.46.2";
+      ref = "refs/tags/v0.47.1";
       type = "git";
       submodules = true;
 
