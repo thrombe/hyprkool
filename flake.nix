@@ -296,7 +296,13 @@
               virtualisation = {
                 virtualbox.guest.enable = true;
                 vmware.guest.enable = true;
-                qemu.options = ["-device virtio-vga"];
+                qemu.options = [
+                  # "-device virtio-vga"
+
+                  "-device virtio-vga-gl"
+                  "-display gtk,gl=on"
+                  "-enable-kvm"
+                ];
               };
               virtualisation.vmVariant = {
                 # - [nixpkgs/nixos/modules/virtualisation/qemu-vm.nix at nixos-23.05 · NixOS/nixpkgs · GitHub](https://github.com/NixOS/nixpkgs/blob/nixos-23.05/nixos/modules/virtualisation/qemu-vm.nix)
