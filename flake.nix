@@ -62,40 +62,44 @@
       };
       plugin-manifest = (pkgs.lib.importTOML ./hyprpm.toml).repository;
       # - [Override Design Pattern - Nix Pills](https://nixos.org/guides/nix-pills/14-override-design-pattern)
-      hyprkool-plugin = pkgs.lib.makeOverridable pkgs.callPackage ({ pkgs, hyprland }: stdenv.mkDerivation rec {
-        pname = plugin-manifest.name;
-        version = manifest.version;
+      hyprkool-plugin = pkgs.lib.makeOverridable pkgs.callPackage ({
+        pkgs,
+        hyprland,
+      }:
+        stdenv.mkDerivation rec {
+          pname = plugin-manifest.name;
+          version = manifest.version;
 
-        src = ./.;
+          src = ./.;
 
-        dontUseCmakeConfigure = true;
-        dontUseMesonConfigure = true;
-        buildPhase = ''
-          make plugin
-          mv ./plugin/build/lib${pname}.so .
-        '';
-        installPhase = ''
-          mkdir -p $out/lib
-          mv ./lib${pname}.so $out/lib/lib${pname}.so
-        '';
+          dontUseCmakeConfigure = true;
+          dontUseMesonConfigure = true;
+          buildPhase = ''
+            make -j 16 plugin
+            mv ./plugin/build/lib${pname}.so .
+          '';
+          installPhase = ''
+            mkdir -p $out/lib
+            mv ./lib${pname}.so $out/lib/lib${pname}.so
+          '';
 
-        nativeBuildInputs =
-          (with pkgs; [
-            pkg-config
-          ])
-          ++ [
-            hyprland.dev
-          ];
-        buildInputs =
-          (with pkgs; [
-            cmake
-            meson
-            ninja
-          ])
-          ++ hyprland.buildInputs;
+          nativeBuildInputs =
+            (with pkgs; [
+              pkg-config
+            ])
+            ++ [
+              hyprland.dev
+            ];
+          buildInputs =
+            (with pkgs; [
+              cmake
+              meson
+              ninja
+            ])
+            ++ hyprland.buildInputs;
 
-        inherit meta;
-      }) {};
+          inherit meta;
+        }) {};
 
       fhs = pkgs.buildFHSEnv {
         name = "fhs-shell";
