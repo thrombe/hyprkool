@@ -24,7 +24,7 @@ void OverviewWorkspace::render(CBox screen, timespec* time) {
         if (!ws) {
             continue;
         }
-        if (ws->m_szName != name) {
+        if (ws->m_name != name) {
             continue;
         }
         // TODO: special and pinned windows apparently go on top of everything in that order
@@ -132,8 +132,8 @@ void GridOverview::init() {
     auto m = g_pCompositor->getMonitorFromCursor();
     auto& w = m->activeWorkspace;
 
-    if (std::regex_match(w->m_szName, overview_pattern)) {
-        auto ss = std::istringstream(w->m_szName);
+    if (std::regex_match(w->m_name, overview_pattern)) {
+        auto ss = std::istringstream(w->m_name);
         std::getline(ss, activity, ':');
     } else {
         throw_err_notif("can't display overview when not in a hyprkool activity");
@@ -209,14 +209,14 @@ void GridOverview::render() {
             continue;
         }
         for (auto& ow : workspaces) {
-            if (ws->m_szName == ow.name) {
+            if (ws->m_name == ow.name) {
                 CBox wbox = w->getFullWindowBoundingBox();
                 wbox.scale(ow.scale * m->scale);
                 wbox.translate(ow.box.pos());
                 wbox.expand(-1);
                 wbox.round();
 
-                if (aw->m_szName.starts_with(ow.name) && ws->getLastFocusedWindow().get() == w.get()) {
+                if (aw->m_name.starts_with(ow.name) && ws->getLastFocusedWindow().get() == w.get()) {
                     ow.render_border(wbox, g_go.focus_border, g_go.border_size);
                     did_render_focus_ws_border = true;
                 }
@@ -231,7 +231,7 @@ void GridOverview::render() {
 
     if (!did_render_focus_ws_border) {
         for (auto& ow : workspaces) {
-            if (aw->m_szName.starts_with(ow.name)) {
+            if (aw->m_name.starts_with(ow.name)) {
                 ow.render_border(ow.box.copy().expand(border_size), focus_border, border_size);
             }
         }

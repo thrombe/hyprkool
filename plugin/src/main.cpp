@@ -214,7 +214,7 @@ void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
 
 void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto const ws = std::any_cast<CSharedPointer<CWorkspace>>(args);
-    if (ws->m_szName.ends_with(":overview")) {
+    if (ws->m_name.ends_with(":overview")) {
         g_go = {};
         g_go.init();
         overview_enabled = true;
@@ -240,8 +240,8 @@ void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
     if (overview_enabled) {
         auto m = g_pCompositor->getMonitorFromCursor();
         auto& w = m->activeWorkspace;
-        if (std::regex_match(w->m_szName, overview_pattern)) {
-            auto ss = std::istringstream(w->m_szName);
+        if (std::regex_match(w->m_name, overview_pattern)) {
+            auto ss = std::istringstream(w->m_name);
             std::string activity;
             std::string pos;
             std::getline(ss, activity, ':');
@@ -275,7 +275,7 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
             if (!w->m_pWorkspace) {
                 continue;
             }
-            if (w->m_pWorkspace->m_szName.starts_with(ow.name)) {
+            if (w->m_pWorkspace->m_name.starts_with(ow.name)) {
                 wbox.scale(ow.scale);
                 wbox.translate(ow.box.pos());
                 wbox.round();
