@@ -269,7 +269,7 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
         return;
     }
     auto pos = g_pInputManager->getMouseCoordsInternal() * g_pCompositor->getMonitorFromCursor()->scale;
-    for (auto& w : g_pCompositor->m_vWindows) {
+    for (auto& w : g_pCompositor->m_windows) {
         auto wbox = w->getFullWindowBoundingBox();
         for (auto& ow : g_go.workspaces) {
             if (!w->m_pWorkspace) {

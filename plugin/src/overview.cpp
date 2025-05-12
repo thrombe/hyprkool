@@ -16,7 +16,7 @@ void OverviewWorkspace::render(CBox screen, timespec* time) {
     render_hyprland_wallpaper();
     render_bg_layers(time);
 
-    for (auto& w : g_pCompositor->m_vWindows) {
+    for (auto& w : g_pCompositor->m_windows) {
         if (!w) {
             continue;
         }
@@ -200,7 +200,7 @@ void GridOverview::render() {
     auto mouse = g_pInputManager->getMouseCoordsInternal() * m->scale;
     bool did_render_focus_ws_border = false;
     bool did_render_cursor_ws_border = false;
-    for (auto& w : g_pCompositor->m_vWindows) {
+    for (auto& w : g_pCompositor->m_windows) {
         if (!w) {
             continue;
         }
