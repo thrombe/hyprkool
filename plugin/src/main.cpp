@@ -130,7 +130,7 @@ void safe_socket_serve() {
 inline CFunctionHook* g_pWorkAnimHook = nullptr;
 typedef void (*origStartAnim)(CWorkspace*, bool, bool, bool);
 void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
-    Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = thisptr->m_fAlpha->getConfig();
+    Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = thisptr->m_alpha->getConfig();
     std::string style = conf->pValues->internalStyle;
 
     switch (anim_dir) {
@@ -161,7 +161,7 @@ void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
         } break;
     }
 
-    (*(origStartAnim)g_pWorkAnimHook->m_pOriginal)(thisptr, in, left, instant);
+    (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, in, left, instant);
 
     conf->pValues->internalStyle = style;
 }
@@ -170,7 +170,7 @@ inline CFunctionHook* g_pRenderLayer = nullptr;
 typedef void (*origRenderLayer)(void*, CLayerSurface*, CMonitor*, timespec*, bool);
 void hk_render_layer(void* thisptr, CLayerSurface* layer, CMonitor* monitor, timespec* time, bool popups) {
     if (!overview_enabled) {
-        (*(origRenderLayer)(g_pRenderLayer->m_pOriginal))(thisptr, layer, monitor, time, popups);
+        (*(origRenderLayer)(g_pRenderLayer->m_original))(thisptr, layer, monitor, time, popups);
     }
 }
 
@@ -272,10 +272,10 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     for (auto& w : g_pCompositor->m_windows) {
         auto wbox = w->getFullWindowBoundingBox();
         for (auto& ow : g_go.workspaces) {
-            if (!w->m_pWorkspace) {
+            if (!w->m_workspace) {
                 continue;
             }
-            if (w->m_pWorkspace->m_name.starts_with(ow.name)) {
+            if (w->m_workspace->m_name.starts_with(ow.name)) {
                 wbox.scale(ow.scale);
                 wbox.translate(ow.box.pos());
                 wbox.round();

@@ -20,7 +20,7 @@ void OverviewWorkspace::render(CBox screen, timespec* time) {
         if (!w) {
             continue;
         }
-        auto& ws = w->m_pWorkspace;
+        auto& ws = w->m_workspace;
         if (!ws) {
             continue;
         }
@@ -39,9 +39,9 @@ void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
 
     CBox wbox = w->getFullWindowBoundingBox();
 
-    auto o_ws = w->m_pWorkspace;
+    auto o_ws = w->m_workspace;
 
-    w->m_pWorkspace = m->activeWorkspace;
+    w->m_workspace = m->activeWorkspace;
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
@@ -52,7 +52,7 @@ void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
     // g_pHyprRenderer->damageWindow(w);
     (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m, time, true, RENDER_PASS_MAIN, false, false);
 
-    w->m_pWorkspace = o_ws;
+    w->m_workspace = o_ws;
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
 }
@@ -204,7 +204,7 @@ void GridOverview::render() {
         if (!w) {
             continue;
         }
-        auto& ws = w->m_pWorkspace;
+        auto& ws = w->m_workspace;
         if (!ws) {
             continue;
         }
