@@ -42,9 +42,9 @@ void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
     auto o_ws = w->m_workspace;
 
     w->m_workspace = m->m_activeWorkspace;
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
     // TODO: damaging window like this doesn't work very well :/
@@ -53,34 +53,34 @@ void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
     (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m, time, true, RENDER_PASS_MAIN, false, false);
 
     w->m_workspace = o_ws;
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
 }
 
 void OverviewWorkspace::render_layer(PHLLS layer, timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
 
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
     (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m, time, false);
 
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
 }
 
 void OverviewWorkspace::render_hyprland_wallpaper() {
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
     g_pHyprOpenGL->clearWithTex();
 
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
+    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
 }
 
 void OverviewWorkspace::render_bg_layers(timespec* time) {
@@ -181,12 +181,12 @@ void GridOverview::render() {
     // TODO: draggable overlay windows
     // try to make dolphin render bg
 
-    auto br = g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender;
-    auto o_modif = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
+    auto br = g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender;
+    auto o_modif = g_pHyprOpenGL->m_renderData.renderModif.enabled;
 
-    g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
-    g_pHyprOpenGL->m_RenderData.clipBox = box;
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
+    g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
+    g_pHyprOpenGL->m_renderData.clipBox = box;
+    g_pHyprOpenGL->m_renderData.renderModif.enabled = true;
 
     g_pHyprOpenGL->renderRectWithBlur(box, CHyprColor(0.0, 0.0, 0.0, 1.0));
 
@@ -245,7 +245,7 @@ void GridOverview::render() {
         }
     }
 
-    g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = br;
-    g_pHyprOpenGL->m_RenderData.clipBox = CBox();
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_modif;
+    g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = br;
+    g_pHyprOpenGL->m_renderData.clipBox = CBox();
+    g_pHyprOpenGL->m_renderData.renderModif.enabled = o_modif;
 }
