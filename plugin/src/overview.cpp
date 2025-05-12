@@ -41,7 +41,7 @@ void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
 
     auto o_ws = w->m_workspace;
 
-    w->m_workspace = m->activeWorkspace;
+    w->m_workspace = m->m_activeWorkspace;
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
@@ -85,11 +85,11 @@ void OverviewWorkspace::render_hyprland_wallpaper() {
 
 void OverviewWorkspace::render_bg_layers(timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
-    for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
+    for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
         auto locked = layer.lock();
         render_layer(locked, time);
     }
-    for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
+    for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
         auto locked = layer.lock();
         render_layer(locked, time);
     }
@@ -97,11 +97,11 @@ void OverviewWorkspace::render_bg_layers(timespec* time) {
 
 void OverviewWorkspace::render_top_layers(timespec* time) {
     auto m = g_pCompositor->getMonitorFromCursor();
-    for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
+    for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
         auto locked = layer.lock();
         render_layer(locked, time);
     }
-    // for (auto& layer : m->m_aLayerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
+    // for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY]) {
     //     render_layer(layer.get(), time);
     // }
 }
@@ -130,7 +130,7 @@ void GridOverview::init() {
     border_size = **BORDER_SIZE;
 
     auto m = g_pCompositor->getMonitorFromCursor();
-    auto& w = m->activeWorkspace;
+    auto& w = m->m_activeWorkspace;
 
     if (std::regex_match(w->m_name, overview_pattern)) {
         auto ss = std::istringstream(w->m_name);
@@ -138,10 +138,10 @@ void GridOverview::init() {
     } else {
         throw_err_notif("can't display overview when not in a hyprkool activity");
     }
-    box.x = m->vecPosition.x;
-    box.y = m->vecPosition.y;
-    box.w = m->vecSize.x * m->scale;
-    box.h = m->vecSize.y * m->scale;
+    box.x = m->m_position.x;
+    box.y = m->m_position.y;
+    box.w = m->m_size.x * m->m_scale;
+    box.h = m->m_size.y * m->m_scale;
 
     float gap_size = **GAP_SIZE/2.0;
     float dx = g_KoolConfig.workspaces_x;
@@ -195,9 +195,9 @@ void GridOverview::render() {
     }
 
     auto m = g_pCompositor->getMonitorFromCursor();
-    auto& aw = m->activeWorkspace;
+    auto& aw = m->m_activeWorkspace;
 
-    auto mouse = g_pInputManager->getMouseCoordsInternal() * m->scale;
+    auto mouse = g_pInputManager->getMouseCoordsInternal() * m->m_scale;
     bool did_render_focus_ws_border = false;
     bool did_render_cursor_ws_border = false;
     for (auto& w : g_pCompositor->m_windows) {
@@ -211,7 +211,7 @@ void GridOverview::render() {
         for (auto& ow : workspaces) {
             if (ws->m_name == ow.name) {
                 CBox wbox = w->getFullWindowBoundingBox();
-                wbox.scale(ow.scale * m->scale);
+                wbox.scale(ow.scale * m->m_scale);
                 wbox.translate(ow.box.pos());
                 wbox.expand(-1);
                 wbox.round();
