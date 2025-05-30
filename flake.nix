@@ -2,17 +2,11 @@
   description = "yaaaaaaaaaaaaaaaaaaaaa";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-
     hyprland = {
-      url = "https://github.com/hyprwm/Hyprland";
-      ref = "refs/tags/v0.48.1";
-      type = "git";
-      submodules = true;
-
-      inputs.nixpkgs.follows = "nixpkgs";
+      url = "github:hyprwm/Hyprland/v0.49.0";
     };
+    nixpkgs.follows = "hyprland/nixpkgs";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = inputs: let
@@ -190,8 +184,8 @@
           # rustup
         ])
         ++ [
-          # (flakePackage inputs.hyprland "hyprland-debug")
-          (flakePackage inputs.hyprland "hyprland")
+          (flakePackage inputs.hyprland "hyprland-debug")
+          # (flakePackage inputs.hyprland "hyprland")
         ]
         ++ (custom-commands pkgs);
 
