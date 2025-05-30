@@ -130,7 +130,7 @@ void safe_socket_serve() {
 inline CFunctionHook* g_pWorkAnimHook = nullptr;
 typedef void (*origStartAnim)(CWorkspace*, bool, bool, bool);
 void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
-    Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = thisptr->m_fAlpha->getConfig();
+    Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = thisptr->m_alpha->getConfig();
     std::string style = conf->pValues->internalStyle;
 
     switch (anim_dir) {
@@ -161,7 +161,7 @@ void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
         } break;
     }
 
-    (*(origStartAnim)g_pWorkAnimHook->m_pOriginal)(thisptr, in, left, instant);
+    (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, in, left, instant);
 
     conf->pValues->internalStyle = style;
 }
@@ -170,7 +170,7 @@ inline CFunctionHook* g_pRenderLayer = nullptr;
 typedef void (*origRenderLayer)(void*, CLayerSurface*, CMonitor*, timespec*, bool);
 void hk_render_layer(void* thisptr, CLayerSurface* layer, CMonitor* monitor, timespec* time, bool popups) {
     if (!overview_enabled) {
-        (*(origRenderLayer)(g_pRenderLayer->m_pOriginal))(thisptr, layer, monitor, time, popups);
+        (*(origRenderLayer)(g_pRenderLayer->m_original))(thisptr, layer, monitor, time, popups);
     }
 }
 
@@ -214,7 +214,7 @@ void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
 
 void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
     auto const ws = std::any_cast<CSharedPointer<CWorkspace>>(args);
-    if (ws->m_szName.ends_with(":overview")) {
+    if (ws->m_name.ends_with(":overview")) {
         g_go = {};
         g_go.init();
         overview_enabled = true;
@@ -239,9 +239,9 @@ void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
     }
     if (overview_enabled) {
         auto m = g_pCompositor->getMonitorFromCursor();
-        auto& w = m->activeWorkspace;
-        if (std::regex_match(w->m_szName, overview_pattern)) {
-            auto ss = std::istringstream(w->m_szName);
+        auto& w = m->m_activeWorkspace;
+        if (std::regex_match(w->m_name, overview_pattern)) {
+            auto ss = std::istringstream(w->m_name);
             std::string activity;
             std::string pos;
             std::getline(ss, activity, ':');
@@ -268,14 +268,14 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (e.button != BTN_LEFT) {
         return;
     }
-    auto pos = g_pInputManager->getMouseCoordsInternal() * g_pCompositor->getMonitorFromCursor()->scale;
-    for (auto& w : g_pCompositor->m_vWindows) {
+    auto pos = g_pInputManager->getMouseCoordsInternal() * g_pCompositor->getMonitorFromCursor()->m_scale;
+    for (auto& w : g_pCompositor->m_windows) {
         auto wbox = w->getFullWindowBoundingBox();
         for (auto& ow : g_go.workspaces) {
-            if (!w->m_pWorkspace) {
+            if (!w->m_workspace) {
                 continue;
             }
-            if (w->m_pWorkspace->m_szName.starts_with(ow.name)) {
+            if (w->m_workspace->m_name.starts_with(ow.name)) {
                 wbox.scale(ow.scale);
                 wbox.translate(ow.box.pos());
                 wbox.round();
