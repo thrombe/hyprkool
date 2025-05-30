@@ -1,6 +1,11 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <wlr-layer-shell-unstable-v1.hpp>
+#include <hyprland/src/render/pass/RectPassElement.hpp>
+#include <hyprland/src/render/pass/BorderPassElement.hpp>
+#include <hyprland/src/render/pass/RendererHintsPassElement.hpp>
+#include <hyprlang.hpp>
+#include <hyprutils/utils/ScopeGuard.hpp>
 
 #include "overview.hpp"
 #include "utils.hpp"
@@ -12,7 +17,7 @@ const char* FOCUS_BORDER_CONFIG_NAME = "plugin:hyprkool:overview:focus_border_co
 const char* GAP_SIZE_CONFIG_NAME = "plugin:hyprkool:overview:workspace_gap_size";
 const char* BORDER_SIZE_CONFIG_NAME = "general:border_size";
 
-void OverviewWorkspace::render(CBox screen, timespec* time) {
+void OverviewWorkspace::render(CBox screen, const Time::steady_tp& time) {
     render_hyprland_wallpaper();
     render_bg_layers(time);
 
@@ -34,18 +39,26 @@ void OverviewWorkspace::render(CBox screen, timespec* time) {
     render_top_layers(time);
 }
 
-void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
+void OverviewWorkspace::render_window(PHLWINDOW w, const Time::steady_tp& time) {
     auto m = g_pCompositor->getMonitorFromCursor();
 
     CBox wbox = w->getFullWindowBoundingBox();
 
     auto o_ws = w->m_workspace;
-
     w->m_workspace = m->m_activeWorkspace;
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
+
+    SRenderModifData renderModif;
+    renderModif.enabled = true;
+
+    renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
+    renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
+
+    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    Hyprutils::Utils::CScopeGuard x([] {
+        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        });
 
     // TODO: damaging window like this doesn't work very well :/
     //       maybe set the pos and size before damaging
@@ -53,49 +66,90 @@ void OverviewWorkspace::render_window(PHLWINDOW w, timespec* time) {
     (*(FuncRenderWindow)renderWindow)(g_pHyprRenderer.get(), w, m, time, true, RENDER_PASS_MAIN, false, false);
 
     w->m_workspace = o_ws;
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
 }
 
-void OverviewWorkspace::render_layer(PHLLS layer, timespec* time) {
-    auto m = g_pCompositor->getMonitorFromCursor();
+void OverviewWorkspace::render_layer(PHLLS layer, const Time::steady_tp& time) {
+    auto monitor = g_pCompositor->getMonitorFromCursor();
 
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
+    SRenderModifData renderModif;
+    renderModif.enabled = true;
+
+    renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
+    renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
-    (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, m, time, false);
+    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    Hyprutils::Utils::CScopeGuard x([] {
+        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        });
 
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
+    (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, monitor, time, false, false);
+
+    // static auto PBLUR = CConfigValue<Hyprlang::INT>("decoration:blur:enabled");
+    // const auto                       REALPOS = pLayer->m_realPosition->value();
+    // const auto                       REALSIZ = pLayer->m_realSize->value();
+
+    // CSurfacePassElement::SRenderData renderdata = {pMonitor, time, REALPOS};
+    // renderdata.fadeAlpha                        = pLayer->m_alpha->value();
+    // renderdata.blur                             = pLayer->m_forceBlur && *PBLUR;
+    // renderdata.surface                          = pLayer->m_surface->resource();
+    // renderdata.decorate                         = false;
+    // renderdata.w                                = REALSIZ.x;
+    // renderdata.h                                = REALSIZ.y;
+    // renderdata.pLS                              = pLayer;
+    // renderdata.blockBlurOptimization            = pLayer->m_layer == ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM || pLayer->m_layer == ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND;
+
+    // // renderdata.clipBox = box.scale(scale);
+    // renderdata.clipBox = CBox(box.x, box.y, 100, 100);
+
+    // if (renderdata.blur && pLayer->m_ignoreAlpha) {
+    //     renderdata.discardMode |= DISCARD_ALPHA;
+    //     renderdata.discardOpacity = pLayer->m_ignoreAlphaValue;
+    // }
+
+    //     pLayer->m_surface->resource()->breadthfirst(
+    //         [this, &renderdata, &pLayer](SP<CWLSurfaceResource> s, const Vector2D& offset, void* data) {
+    //             renderdata.localPos    = offset;
+    //             renderdata.texture     = s->m_current.texture;
+    //             renderdata.surface     = s;
+    //             renderdata.mainSurface = s == pLayer->m_surface->resource();
+    //             g_pHyprRenderer->m_renderPass.add(makeShared<CSurfacePassElement>(renderdata));
+    //             renderdata.surfaceCounter++;
+    //         },
+    //         &renderdata);
 }
 
 void OverviewWorkspace::render_hyprland_wallpaper() {
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
+    SRenderModifData renderModif;
+    renderModif.enabled = true;
+
+    renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.push_back(
+    renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
-    g_pHyprOpenGL->clearWithTex();
+    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    Hyprutils::Utils::CScopeGuard x([] {
+        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        });
 
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_renderData.renderModif.modifs.pop_back();
+    g_pHyprOpenGL->clearWithTex();
 }
 
-void OverviewWorkspace::render_bg_layers(timespec* time) {
+void OverviewWorkspace::render_bg_layers(const Time::steady_tp& time) {
     auto m = g_pCompositor->getMonitorFromCursor();
-    for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
-        auto locked = layer.lock();
-        render_layer(locked, time);
-    }
+    // for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND]) {
+    //     auto locked = layer.lock();
+    //     render_layer(locked, time);
+    // }
     for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]) {
         auto locked = layer.lock();
         render_layer(locked, time);
     }
 }
 
-void OverviewWorkspace::render_top_layers(timespec* time) {
+void OverviewWorkspace::render_top_layers(const Time::steady_tp& time) {
     auto m = g_pCompositor->getMonitorFromCursor();
     for (auto& layer : m->m_layerSurfaceLayers[ZWLR_LAYER_SHELL_V1_LAYER_TOP]) {
         auto locked = layer.lock();
@@ -113,7 +167,13 @@ void OverviewWorkspace::render_border(CBox bbox, CHyprColor col, int border_size
     bbox.h = std::max(bbox.h, 1.0);
     CGradientValueData grad = {col};
 
-    g_pHyprOpenGL->renderBorder(bbox, grad, 0, 0, border_size);
+    CBorderPassElement::SBorderData data;
+    data.box = bbox;
+    data.grad1 = grad;
+    data.round = 0;
+    data.a = 1.f;
+    data.borderSize = border_size;
+    g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
 }
 
 void GridOverview::init() {
@@ -173,25 +233,30 @@ void GridOverview::init() {
 }
 
 void GridOverview::render() {
-    timespec time;
-    clock_gettime(CLOCK_MONOTONIC, &time);
+    const auto time = Time::steadyNow();
 
     // TODO: rounding
     // TODO: clicks should not go to the hidden layers (top layer)
     // TODO: draggable overlay windows
     // try to make dolphin render bg
 
+    SRenderModifData renderModif;
+    renderModif.enabled = true;
+
+    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    Hyprutils::Utils::CScopeGuard x([] {
+        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        });
+
     auto br = g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender;
-    auto o_modif = g_pHyprOpenGL->m_renderData.renderModif.enabled;
 
     g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
     g_pHyprOpenGL->m_renderData.clipBox = box;
-    g_pHyprOpenGL->m_renderData.renderModif.enabled = true;
 
     g_pHyprOpenGL->renderRectWithBlur(box, CHyprColor(0.0, 0.0, 0.0, 1.0));
 
     for (auto& ow : workspaces) {
-        ow.render(box, &time);
+        ow.render(box, time);
     }
 
     auto m = g_pCompositor->getMonitorFromCursor();
@@ -247,5 +312,4 @@ void GridOverview::render() {
 
     g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = br;
     g_pHyprOpenGL->m_renderData.clipBox = CBox();
-    g_pHyprOpenGL->m_renderData.renderModif.enabled = o_modif;
 }
