@@ -64,7 +64,10 @@
           pname = plugin-manifest.name;
           version = manifest.version;
 
-          src = ./.;
+          src = builtins.path {
+            path = ./.;
+            name = "hyprkool-source";
+          };
 
           dontUseCmakeConfigure = true;
           dontUseMesonConfigure = true;
