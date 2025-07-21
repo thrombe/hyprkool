@@ -55,9 +55,9 @@ void OverviewWorkspace::render_window(PHLWINDOW w, const Time::steady_tp& time) 
     renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
     Hyprutils::Utils::CScopeGuard x([] {
-        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
         });
 
     // TODO: damaging window like this doesn't work very well :/
@@ -79,9 +79,9 @@ void OverviewWorkspace::render_layer(PHLLS layer, const Time::steady_tp& time) {
     renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
     Hyprutils::Utils::CScopeGuard x([] {
-        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
         });
 
     (*(FuncRenderLayer)renderLayer)(g_pHyprRenderer.get(), layer, monitor, time, false, false);
@@ -114,7 +114,7 @@ void OverviewWorkspace::render_layer(PHLLS layer, const Time::steady_tp& time) {
     //             renderdata.texture     = s->m_current.texture;
     //             renderdata.surface     = s;
     //             renderdata.mainSurface = s == pLayer->m_surface->resource();
-    //             g_pHyprRenderer->m_renderPass.add(makeShared<CSurfacePassElement>(renderdata));
+    //             g_pHyprRenderer->m_renderPass.add(makeUnique<CSurfacePassElement>(renderdata));
     //             renderdata.surfaceCounter++;
     //         },
     //         &renderdata);
@@ -129,9 +129,9 @@ void OverviewWorkspace::render_hyprland_wallpaper() {
     renderModif.modifs.push_back(
         {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, box.pos()});
 
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
     Hyprutils::Utils::CScopeGuard x([] {
-        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
         });
 
     g_pHyprOpenGL->clearWithTex();
@@ -173,7 +173,7 @@ void OverviewWorkspace::render_border(CBox bbox, CHyprColor col, int border_size
     data.round = 0;
     data.a = 1.f;
     data.borderSize = border_size;
-    g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 }
 
 void GridOverview::init() {
@@ -243,9 +243,9 @@ void GridOverview::render() {
     SRenderModifData renderModif;
     renderModif.enabled = true;
 
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{renderModif}));
     Hyprutils::Utils::CScopeGuard x([] {
-        g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{SRenderModifData{}}));
         });
 
     auto br = g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender;

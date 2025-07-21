@@ -3,7 +3,7 @@
 
   inputs = {
     hyprland = {
-      url = "github:hyprwm/Hyprland/v0.49.0";
+      url = "github:hyprwm/Hyprland/v0.50.1";
     };
     nixpkgs.follows = "hyprland/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
@@ -216,7 +216,7 @@
             export RUST_BACKTRACE="1"
 
             # $(pwd) always resolves to project root :)
-            export CLANGD_FLAGS="--compile-commands-dir=$(pwd)/plugin --query-driver=$(which $CXX)"
+            export CLANGD_FLAGS="--compile-commands-dir=$(pwd)/plugin/build --query-driver=$(which $CXX)"
           '';
         };
     });
