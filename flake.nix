@@ -213,7 +213,7 @@
             export RUST_BACKTRACE="1"
 
             # $(pwd) always resolves to project root :)
-            export CLANGD_FLAGS="--compile-commands-dir=$(pwd)/plugin --query-driver=$(which $CXX)"
+            export CLANGD_FLAGS="--compile-commands-dir=$(pwd)/plugin/build --query-driver=$(which $CXX)"
           '';
         };
     });
