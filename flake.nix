@@ -3,7 +3,7 @@
 
   inputs = {
     hyprland = {
-      url = "github:hyprwm/Hyprland/v0.49.0";
+      url = "github:hyprwm/Hyprland/v0.50.0";
     };
     nixpkgs.follows = "hyprland/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
