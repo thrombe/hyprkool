@@ -269,25 +269,26 @@ void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
         return;
     }
     auto pos = g_pInputManager->getMouseCoordsInternal() * g_pCompositor->getMonitorFromCursor()->m_scale;
-    for (auto& w : g_pCompositor->m_windows) {
-        auto wbox = w->getFullWindowBoundingBox();
-        for (auto& ow : g_go.workspaces) {
-            if (!w->m_workspace) {
-                continue;
-            }
-            if (w->m_workspace->m_name.starts_with(ow.name)) {
-                wbox.scale(ow.scale);
-                wbox.translate(ow.box.pos());
-                wbox.round();
-                if (wbox.containsPoint(pos)) {
-                    // Hyprland/src/desktop/Window.hpp:467
-                    HyprlandAPI::invokeHyprctlCommand("dispatch", std::string("focuswindow address:") +
-                                                                      std::format("0x{:x}", (uintptr_t)w.get()));
-                    return;
-                }
-            }
-        }
-    }
+    // for (auto& w : g_pCompositor->m_windows) {
+    //     auto wbox = w->getFullWindowBoundingBox();
+    //     for (auto& ow : g_go.workspaces) {
+    //         if (!w->m_workspace) {
+    //             continue;
+    //         }
+    //         if (w->m_workspace->m_name.starts_with(ow.name)) {
+    //             wbox.scale(ow.scale);
+    //             wbox.translate(ow.box.pos());
+    //             wbox.round();
+    //             if (wbox.containsPoint(pos)) {
+    //                 // Hyprland/src/desktop/Window.hpp:467
+    //                 // OOF: (uintptr_t)w.get() crashes
+    //                 HyprlandAPI::invokeHyprctlCommand("dispatch", std::string("focuswindow address:") +
+    //                                                                   std::format("0x{:x}", (uintptr_t)w.get()));
+    //                 return;
+    //             }
+    //         }
+    //     }
+    // }
     for (auto& ow : g_go.workspaces) {
         if (ow.box.containsPoint(pos)) {
             HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + ow.name);
