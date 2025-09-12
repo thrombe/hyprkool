@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     info::InfoCommand,
-    state::{is_plugin_running, Animation},
+    state::Animation,
     State,
 };
 
@@ -134,7 +134,6 @@ pub enum Command {
         #[arg(short, long)]
         name: String,
     },
-    ToggleOverview,
 }
 
 impl Command {
@@ -433,31 +432,6 @@ impl Command {
             }
             Command::SetNamedFocus { .. } => {
                 println!("ERROR: please use hyprkool daemon for this feature");
-            }
-            Command::ToggleOverview => {
-                let workspace = Workspace::get_active_async().await?;
-                match workspace.name.strip_suffix(":overview") {
-                    Some(name) => {
-                        state
-                            .move_to_workspace(name, false, Animation::Fade)
-                            .await?;
-                    }
-                    None => {
-                        if is_plugin_running().await.unwrap_or_default() {
-                            state
-                                .move_to_workspace(
-                                    format!("{}:overview", &workspace.name),
-                                    false,
-                                    Animation::Fade,
-                                )
-                                .await?;
-                        } else {
-                            return Err(anyhow!(
-                                "hyprkool plugin must be running for this feature to work."
-                            ));
-                        }
-                    }
-                }
             }
             _ => {
                 return Err(anyhow!("cannot ececute these commands here"));
