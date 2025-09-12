@@ -3,17 +3,14 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <hyprland/src/devices/IPointer.hpp>
 #include <filesystem>
 
-#include "overview.hpp"
 #include "utils.hpp"
 
 #ifndef VERSION
 #define VERSION ""
 #endif
 
-bool overview_enabled = false;
 void handle_plugin_event(PluginEvent e) {
     switch (e) {
         default: {
@@ -166,174 +163,14 @@ void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
     conf->pValues->internalStyle = style;
 }
 
-inline CFunctionHook* g_pRenderLayer = nullptr;
-typedef void (*origRenderLayer)(void*, CLayerSurface*, CMonitor*, timespec*, bool);
-void hk_render_layer(void* thisptr, CLayerSurface* layer, CMonitor* monitor, timespec* time, bool popups) {
-    if (!overview_enabled) {
-        (*(origRenderLayer)(g_pRenderLayer->m_original))(thisptr, layer, monitor, time, popups);
-    }
-}
-
-void on_render(void* thisptr, SCallbackInfo& info, std::any args) {
-    if (!overview_enabled) {
-        return;
-    }
-    const auto render_stage = std::any_cast<eRenderStage>(args);
-
-    switch (render_stage) {
-        case eRenderStage::RENDER_PRE: {
-        } break;
-        case eRenderStage::RENDER_PRE_WINDOWS: {
-            // CBox box = CBox(50, 50, 100.0, 100.0);
-            // g_pHyprOpenGL->renderRectWithBlur(&box, CHyprColor(0.3, 0.0, 0.0, 0.3));
-            overview_enabled = false;
-            g_go.render();
-            overview_enabled = true;
-            // TODO: damaging entire window fixes the weird areas - but is inefficient
-            g_pHyprRenderer->damageBox(g_go.box);
-        } break;
-        case eRenderStage::RENDER_POST_WINDOWS: {
-        } break;
-        case eRenderStage::RENDER_LAST_MOMENT: {
-        } break;
-        case eRenderStage::RENDER_POST: {
-        } break;
-        default: {
-        } break;
-    }
-}
-
-void safe_on_render(void* thisptr, SCallbackInfo& info, std::any args) {
-    // it should not throw, but better to not crash hyprland.
-    try {
-        on_render(thisptr, info, args);
-    } catch (const std::exception& e) {
-        err_notif(std::string("ERROR while rendering overview: ") + e.what());
-    }
-}
-
-void on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
-    auto const ws = std::any_cast<CSharedPointer<CWorkspace>>(args);
-    if (ws->m_name.ends_with(":overview")) {
-        g_go = {};
-        g_go.init();
-        overview_enabled = true;
-    } else {
-        overview_enabled = false;
-    }
-}
-
-void safe_on_workspace(void* thisptr, SCallbackInfo& info, std::any args) {
-    try {
-        on_workspace(thisptr, info, args);
-    } catch (const std::exception& e) {
-        err_notif(e.what());
-        overview_enabled = false;
-    }
-}
-
-void on_window(void* thisptr, SCallbackInfo& info, std::any args) {
-    auto const w = std::any_cast<PHLWINDOW>(args);
-    if (!w) {
-        return;
-    }
-    if (overview_enabled) {
-        auto m = g_pCompositor->getMonitorFromCursor();
-        auto& w = m->m_activeWorkspace;
-        if (std::regex_match(w->m_name, overview_pattern)) {
-            auto ss = std::istringstream(w->m_name);
-            std::string activity;
-            std::string pos;
-            std::getline(ss, activity, ':');
-            std::getline(ss, pos, ':');
-            HyprlandAPI::invokeHyprctlCommand("dispatch", "movetoworkspace name:" + activity + ":" + pos);
-        }
-        overview_enabled = false;
-    }
-}
-void safe_on_window(void* thisptr, SCallbackInfo& info, std::any args) {
-    try {
-        on_window(thisptr, info, args);
-    } catch (const std::exception& e) {
-        err_notif(e.what());
-        overview_enabled = false;
-    }
-}
-
-void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
-    if (!overview_enabled) {
-        return;
-    }
-    const auto e = std::any_cast<IPointer::SButtonEvent>(args);
-    if (e.button != BTN_LEFT) {
-        return;
-    }
-    auto pos = g_pInputManager->getMouseCoordsInternal() * g_pCompositor->getMonitorFromCursor()->m_scale;
-    // for (auto& w : g_pCompositor->m_windows) {
-    //     auto wbox = w->getFullWindowBoundingBox();
-    //     for (auto& ow : g_go.workspaces) {
-    //         if (!w->m_workspace) {
-    //             continue;
-    //         }
-    //         if (w->m_workspace->m_name.starts_with(ow.name)) {
-    //             wbox.scale(ow.scale);
-    //             wbox.translate(ow.box.pos());
-    //             wbox.round();
-    //             if (wbox.containsPoint(pos)) {
-    //                 // Hyprland/src/desktop/Window.hpp:467
-    //                 // OOF: (uintptr_t)w.get() crashes
-    //                 HyprlandAPI::invokeHyprctlCommand("dispatch", std::string("focuswindow address:") +
-    //                                                                   std::format("0x{:x}", (uintptr_t)w.get()));
-    //                 return;
-    //             }
-    //         }
-    //     }
-    // }
-    for (auto& ow : g_go.workspaces) {
-        if (ow.box.containsPoint(pos)) {
-            HyprlandAPI::invokeHyprctlCommand("dispatch", "workspace name:" + ow.name);
-            return;
-        }
-    }
-}
-void safe_on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
-    try {
-        on_mouse_button(thisptr, info, args);
-    } catch (const std::exception& e) {
-        err_notif(e.what());
-        overview_enabled = false;
-    }
-}
-
-CSharedPointer<HOOK_CALLBACK_FN> render_callback;
-CSharedPointer<HOOK_CALLBACK_FN> workspace_callback;
-CSharedPointer<HOOK_CALLBACK_FN> activewindow_callback;
-CSharedPointer<HOOK_CALLBACK_FN> mousebutton_callback;
 void init_hooks() {
     static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
     g_pWorkAnimHook->hook();
-
-    static const auto RENDER_LAYER = HyprlandAPI::findFunctionsByName(PHANDLE, "renderLayer");
-    g_pRenderLayer = HyprlandAPI::createFunctionHook(PHANDLE, RENDER_LAYER[0].address, (void*)&hk_render_layer);
-    g_pRenderLayer->hook();
-
-    render_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "render", safe_on_render);
-    workspace_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "workspace", safe_on_workspace);
-    activewindow_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "activeWindow", safe_on_window);
-    mousebutton_callback = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", safe_on_mouse_button);
-
-    auto funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
-    renderWindow = funcSearch[0].address;
-
-    funcSearch = HyprlandAPI::findFunctionsByName(PHANDLE, "renderLayer");
-    renderLayer = funcSearch[0].address;
 }
 
 void init_hypr_config() {
-    HyprlandAPI::addConfigValue(PHANDLE, HOVER_BORDER_CONFIG_NAME, Hyprlang::INT{0xee33ccff});
-    HyprlandAPI::addConfigValue(PHANDLE, FOCUS_BORDER_CONFIG_NAME, Hyprlang::INT{0xee00ff99});
-    HyprlandAPI::addConfigValue(PHANDLE, GAP_SIZE_CONFIG_NAME, Hyprlang::INT{10});
+    // HyprlandAPI::addConfigValue(PHANDLE, _?_, Hyprlang::INT{?});
 }
 
 // Do NOT change this function.

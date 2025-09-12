@@ -26,7 +26,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(hyprkool SHARED
     src/main.cpp
-    src/overview.cpp
     src/utils.cpp
 )
 
