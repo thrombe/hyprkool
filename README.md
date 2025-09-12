@@ -4,14 +4,12 @@ An opinionated [Hyprland](https://github.com/hyprwm/Hyprland) plugin that tries 
 ### Demo Video
 Check out our [demo video](https://youtu.be/tim5r6Yo6TA) to see Hyprkool in action:
 
-[![overview](./screenshots/overview.jpg)](https://www.youtube.com/watch?v=tim5r6Yo6TA)
-
 # Features
 - switch desktops when cursor touches screen edges
 - grid layout
 - info commands for tools like eww and waybar
 - an optional daemon for stateful commands
-- a grid overview
+- ~a grid overview~ [overview feature is no longer supported](https://github.com/thrombe/hyprkool/issues/27#issuecomment-2940452377)
 - [harpoon](https://github.com/ThePrimeagen/harpoon) but for hyprland workspaces
 
 # Usage
@@ -19,7 +17,6 @@ Hyprkool consists of two main components: a CLI + daemon written in Rust and a C
 The CLI and daemon collectively provide most of the functionality.
 Additionally, there's an optional C++ plugin that offers a couple of features.
 - Changing workspace animations based on movement direction.
-- Grid overview.
 
 The daemon component of Hyprkool is also optional but required for certain features, including:
 - Desktop switching when the cursor touches screen edges.
@@ -40,7 +37,8 @@ The plugin is tested and compatible with the following versions of Hyprland. Whi
 | [v0.46.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.46.2) | [v0.7.4](https://github.com/thrombe/hyprkool/releases/tag/0.7.4) |
 | [v0.47.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.47.1) | [v0.7.5](https://github.com/thrombe/hyprkool/releases/tag/0.7.5) |
 | [v0.49.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.49.0) | [v0.7.6](https://github.com/thrombe/hyprkool/releases/tag/0.7.6) |
-| [v0.50.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.0) | [v0.7.7](https://github.com/thrombe/hyprkool/releases/tag/0.7.7) |
+| [v0.50.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.0) | [v0.7.7](https://github.com/thrombe/hyprkool/releases/tag/0.7.7) |
+| [v0.50.1](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.1) | [v0.8.0](https://github.com/thrombe/hyprkool/releases/tag/0.8.0) |
 
 # Installing Cli/Daemon
 <!-- enable when new version of hyprland-rs drops -->
@@ -194,17 +192,6 @@ animations {
   animation = workspaces, 1, 2, default, fade
 }
 
-# default hyprkool plugin configuration
-plugin {
-    hyprkool {
-        overview {
-            hover_border_color = rgba(33ccffee)
-            focus_border_color = rgba(00ff99ee)
-            workspace_gap_size = 10
-        }
-    }
-}
-
 # Switch activity
 bind = $mainMod, TAB, exec, hyprkool next-activity -c
 
@@ -237,9 +224,6 @@ bind = $mainMod, 3, exec, hyprkool switch-named-focus -n 3
 bind = $mainMod SHIFT, 1, exec, hyprkool set-named-focus -n 1
 bind = $mainMod SHIFT, 2, exec, hyprkool set-named-focus -n 2
 bind = $mainMod SHIFT, 3, exec, hyprkool set-named-focus -n 3
-
-# this only works if you have the hyprkool plugin
-bind = $mainMod, b, exec, hyprkool toggle-overview
 
 # this is optional, but it can provide features like
 # - remembering the last focused workspace in an activity
@@ -276,7 +260,7 @@ then make the following changes to hyprland.conf
 $hyprkool = "/absolute/path/to/hyprkool"
 
 # then set up any keybinds using this variable
-bind = $mainMod, b, exec, $hyprkool toggle-overview
+bind = $mainMod, l, exec, $hyprkool move-right
 ```
 ## Info commands
 Hyprkool supports some additional info commands that help you to build widgets using applications like

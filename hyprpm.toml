@@ -24,7 +24,7 @@ commit_pins = [
     ["75dff7205f6d2bd437abfb4196f700abee92581a", "365ea78fd93c4fb7d5101fe481f00958b9aae2cb"], # v0.47.1 0.7.5
     ["9958d297641b5c84dcff93f9039d80a5ad37ab00", "60037a19467c4c11e296903299be8a2bf643622a"], # v0.49.0 0.7.6
     ["c4a4c341568944bd4fb9cd503558b2de602c0213", "a7c484f90c35a934e0b19acc931063bbfbad27ea"], # v0.50.0 0.7.7
-    ["4e242d086e20b32951fdc0ebcbfb4d41b5be8dcc", "a7c484f90c35a934e0b19acc931063bbfbad27ea"], # v0.50.1 0.7.7
+    ["4e242d086e20b32951fdc0ebcbfb4d41b5be8dcc", ""], # v0.50.1 0.8.0
 ]
 
 [hyprkool]
