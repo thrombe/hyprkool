@@ -126,15 +126,10 @@ void safe_socket_serve() {
 }
 
 inline CFunctionHook* g_pWorkAnimHook = nullptr;
+
 using origStartAnim = void(*)(CDesktopAnimationManager*, PHLWORKSPACE, CDesktopAnimationManager::eAnimationType, bool, bool);
-using origStartAnimMemberFnType = void (CDesktopAnimationManager::*)(PHLWORKSPACE, CDesktopAnimationManager::eAnimationType, bool, bool);
-static_assert(
-    std::is_same_v<
-        origStartAnimMemberFnType,
-        decltype(static_cast<origStartAnimMemberFnType>(&CDesktopAnimationManager::startAnimation))
-    >,
-    "animation hook function signature mismatch"
-);
+constexpr auto _ = static_cast<void (CDesktopAnimationManager::*)(PHLWORKSPACE, CDesktopAnimationManager::eAnimationType, bool, bool)>
+                        (&CDesktopAnimationManager::startAnimation);
 
 void hk_workspace_anim(CDesktopAnimationManager* thisptr, PHLWORKSPACE ws, CDesktopAnimationManager::eAnimationType type, bool left, bool instant) {
     Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = ws->m_alpha->getConfig();
