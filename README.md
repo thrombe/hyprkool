@@ -160,6 +160,15 @@ activities = ["my-default-activity", "my-activity"]
 # number of workspaces in x and y dimensions
 workspaces = [2, 2]
 
+# specify some named foci to load by default
+named_focii = { "1" = "my-activity:(1 1)", "2" = "my-activity:(2 2)" }
+
+# specify icon theme for `hyprkool info` commands
+icon_theme = "Papirus"
+
+# specify the default value of --window-icon-try-min-size for `hyprkool info` commands
+window_icon_try_min_size = 32
+
 [daemon]
 # remember last focused workspace in an activity
 remember_activity_focus = true
@@ -243,7 +252,7 @@ For some of the hyprkool commands to work correctly, you need to switch to a hyp
 If hyprkool can't find icons, you can specify the name of the icon pack for hyprkool to use. for example
 ```zsh
 # assuming the Papirus icons are installed
-hyprkool info -m active-workspace-windows -t Papirus
+hyprkool info -m monitors-all-info -t Papirus
 ```
 
 #### Some command does not work
@@ -266,7 +275,7 @@ bind = $mainMod, l, exec, $hyprkool move-right
 Hyprkool supports some additional info commands that help you to build widgets using applications like
 [waybar](https://github.com/Alexays/Waybar) and [eww](https://github.com/elkowar/eww).
 
-for example, ```hyprkool info -m active-window``` prints the active window information.
+for example, ```hyprkool info -m monitors-all-info``` prints info about all monitors, workspaces for those monitors and open windows for those workspaces in a hierarchy.
 
 Note: the --monitor or -m flag makes this info print in an infinite loop. this however is very efficient
 as it is event based and not polling based.
@@ -275,7 +284,7 @@ and waybar (using [`exec`](https://github.com/Alexays/Waybar/wiki/Module:-Custom
 this kind of efficient updates.
 
 ### Eww config
-Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/87593cb6ef9718475a3b57ce6a4a2a9727ba2eee/configma/tools/home/.config/eww/eww.yuck).
+Example eww config can be found in [my dotfiles](https://github.com/thrombe/dotfiles-promax/blob/6db936b8db7718cae36e26d57878bc4447bd930e/configma/tools/home/.config/eww/eww.yuck).
 
 # Contributing
 Contributions are welcome to Hyprkool! If you're fixing a bug, adding a feature, or making an improvement, feel free to submit a pull request (PR) to help enhance the plugin.
