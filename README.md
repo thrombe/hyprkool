@@ -208,6 +208,16 @@ bind = $mainMod, TAB, exec, hyprkool next-activity -c
 # Move active window to a different acitvity
 bind = $mainMod CTRL, TAB, exec, hyprkool next-activity -c -w
 
+# Switch monitor
+bind = $mainMod, code:49, exec, $hyprkool next-monitor -c
+
+# Move active window to a different monitor
+bind = $mainMod CTRL, code:49, exec, $hyprkool next-monitor -c -w
+
+# Swap active workspaces on current and next monitor
+bind = $mainMod SHIFT, code:49, exec, $hyprkool swap-monitors-active-workspace
+bind = $mainMod CTRL SHIFT, code:49, exec, $hyprkool swap-monitors-active-workspace -w
+
 # Relative workspace jumps
 bind = $mainMod, h, exec, hyprkool move-left -c
 bind = $mainMod, l, exec, hyprkool move-right -c
