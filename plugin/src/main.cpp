@@ -134,12 +134,10 @@ constexpr auto _ = static_cast<void (CDesktopAnimationManager::*)(PHLWORKSPACE, 
 void hk_workspace_anim(CDesktopAnimationManager* thisptr, PHLWORKSPACE ws, CDesktopAnimationManager::eAnimationType type, bool left, bool instant) {
     Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = ws->m_alpha->getConfig();
 
-    bool did_the_thing = false;
-
+    std::string style;
     if (const auto pconfig = conf.lock()) {
-        const auto pvalues = pconfig->pValues.lock();
-        if (pvalues) {
-            std::string style = pvalues->internalStyle;
+        if (const auto pvalues = pconfig->pValues.lock()) {
+            style = pvalues->internalStyle;
 
             switch (anim_dir) {
                 case Animation::None: {
@@ -168,16 +166,15 @@ void hk_workspace_anim(CDesktopAnimationManager* thisptr, PHLWORKSPACE ws, CDesk
                     instant = true;
                 } break;
             }
-
-            (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, ws, type, left, instant);
-
-            pvalues->internalStyle = style;
-            did_the_thing = true;
         }
     }
 
-    if (!did_the_thing) {
-        (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, ws, type, left, instant);
+    (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, ws, type, left, instant);
+
+    if (const auto pconfig = conf.lock()) {
+        if (const auto pvalues = pconfig->pValues.lock()) {
+            pvalues->internalStyle = style;
+        }
     }
 }
 
