@@ -126,46 +126,69 @@ void safe_socket_serve() {
 }
 
 inline CFunctionHook* g_pWorkAnimHook = nullptr;
-typedef void (*origStartAnim)(CWorkspace*, bool, bool, bool);
-void hk_workspace_anim(CWorkspace* thisptr, bool in, bool left, bool instant) {
-    Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = thisptr->m_alpha->getConfig();
-    std::string style = conf->pValues->internalStyle;
+using origStartAnim = void(*)(CDesktopAnimationManager*, PHLWORKSPACE, CDesktopAnimationManager::eAnimationType, bool, bool);
+using origStartAnimMemberFnType = void (CDesktopAnimationManager::*)(PHLWORKSPACE, CDesktopAnimationManager::eAnimationType, bool, bool);
+static_assert(
+    std::is_same_v<
+        origStartAnimMemberFnType,
+        decltype(static_cast<origStartAnimMemberFnType>(&CDesktopAnimationManager::startAnimation))
+    >,
+    "animation hook function signature mismatch"
+);
 
-    switch (anim_dir) {
-        case Animation::None: {
-            instant = true;
-        } break;
-        case Animation::Left: {
-            left = false;
-            conf->pValues->internalStyle = "slide";
-        } break;
-        case Animation::Right: {
-            left = true;
-            conf->pValues->internalStyle = "slide";
-        } break;
-        case Animation::Up: {
-            left = false;
-            conf->pValues->internalStyle = "slidevert";
-        } break;
-        case Animation::Down: {
-            left = true;
-            conf->pValues->internalStyle = "slidevert";
-        } break;
-        case Animation::Fade: {
-            conf->pValues->internalStyle = "fade";
-        } break;
-        default: {
-            instant = true;
-        } break;
+void hk_workspace_anim(CDesktopAnimationManager* thisptr, PHLWORKSPACE ws, CDesktopAnimationManager::eAnimationType type, bool left, bool instant) {
+    Hyprutils::Memory::CWeakPointer<Hyprutils::Animation::SAnimationPropertyConfig> conf = ws->m_alpha->getConfig();
+
+    bool did_the_thing = false;
+
+    if (const auto pconfig = conf.lock()) {
+        const auto pvalues = pconfig->pValues.lock();
+        if (pvalues) {
+            std::string style = pvalues->internalStyle;
+
+            switch (anim_dir) {
+                case Animation::None: {
+                    instant = true;
+                } break;
+                case Animation::Left: {
+                    left = false;
+                    pvalues->internalStyle = "slide";
+                } break;
+                case Animation::Right: {
+                    left = true;
+                    pvalues->internalStyle = "slide";
+                } break;
+                case Animation::Up: {
+                    left = false;
+                    pvalues->internalStyle = "slidevert";
+                } break;
+                case Animation::Down: {
+                    left = true;
+                    pvalues->internalStyle = "slidevert";
+                } break;
+                case Animation::Fade: {
+                    pvalues->internalStyle = "fade";
+                } break;
+                default: {
+                    instant = true;
+                } break;
+            }
+
+            (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, ws, type, left, instant);
+
+            pvalues->internalStyle = style;
+            did_the_thing = true;
+        }
     }
 
-    (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, in, left, instant);
-
-    conf->pValues->internalStyle = style;
+    if (!did_the_thing) {
+        (*(origStartAnim)g_pWorkAnimHook->m_original)(thisptr, ws, type, left, instant);
+    }
 }
 
 void init_hooks() {
-    static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "startAnim");
+    // objdump -t $(which Hyprland) | rg "F .text" | rg startAnimation | rg CDesktopAnimationManager | rg CWorkspace
+    static const auto START_ANIM = HyprlandAPI::findFunctionsByName(PHANDLE, "_ZN24CDesktopAnimationManager14startAnimationEN9Hyprutils6Memory14CSharedPointerI10CWorkspaceEENS_14eAnimationTypeEbb");
     g_pWorkAnimHook = HyprlandAPI::createFunctionHook(PHANDLE, START_ANIM[0].address, (void*)&hk_workspace_anim);
     g_pWorkAnimHook->hook();
 }

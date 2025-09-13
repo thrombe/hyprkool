@@ -4,6 +4,7 @@
 #include <thread>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
 
 enum Animation {
     None = 0,
