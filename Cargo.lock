@@ -354,7 +354,7 @@ checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
 name = "hyprkool"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "anyhow",
  "clap",

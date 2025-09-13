@@ -38,7 +38,8 @@ The plugin is tested and compatible with the following versions of Hyprland. Whi
 | [v0.47.x](https://github.com/hyprwm/Hyprland/releases/tag/v0.47.1) | [v0.7.5](https://github.com/thrombe/hyprkool/releases/tag/0.7.5) |
 | [v0.49.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.49.0) | [v0.7.6](https://github.com/thrombe/hyprkool/releases/tag/0.7.6) |
 | [v0.50.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.0) | [v0.7.7](https://github.com/thrombe/hyprkool/releases/tag/0.7.7) |
-| [v0.50.1](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.1) | [v0.8.0](https://github.com/thrombe/hyprkool/releases/tag/0.8.0) |
+| [v0.50.1](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.1) | [v0.8.0](https://github.com/thrombe/hyprkool/releases/tag/0.8.0), [v0.9.1](https://github.com/thrombe/hyprkool/releases/tag/0.9.1) |
+| [v0.51.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.51.0) | [v0.9.2](https://github.com/thrombe/hyprkool/releases/tag/0.9.1) |
 
 # Installing Cli/Daemon
 <!-- enable when new version of hyprland-rs drops -->
