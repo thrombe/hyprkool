@@ -1,17 +1,9 @@
 #pragma once
 
 #include <ctime>
-#include <hyprland/src/Compositor.hpp>
-#include <hyprland/src/render/Renderer.hpp>
+#include <thread>
 #include <hyprland/src/plugins/PluginAPI.hpp>
-#include <hyprland/src/helpers/WLClasses.hpp>
-#include <hyprland/src/managers/input/InputManager.hpp>
-#include <hyprland/src/protocols/PresentationTime.hpp>
-
-typedef void (*FuncRenderWindow)(void*, PHLWINDOW, PHLMONITOR, const Time::steady_tp&, bool, eRenderPassMode, bool, bool);
-extern void* renderWindow;
-typedef void (*FuncRenderLayer)(void*, PHLLS, PHLMONITOR, const Time::steady_tp&, bool, bool);
-extern void* renderLayer;
+#include <hyprland/src/desktop/Workspace.hpp>
 
 enum Animation {
     None = 0,

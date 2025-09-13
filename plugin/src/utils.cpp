@@ -3,9 +3,6 @@
 
 #include "utils.hpp"
 
-void* renderWindow;
-void* renderLayer;
-
 Animation anim_dir = Animation::None;
 
 inline HANDLE PHANDLE = nullptr;

@@ -43,7 +43,7 @@
         cargoLock = {
           lockFile = ./Cargo.lock;
           outputHashes = {
-            "hyprland-0.4.0-alpha.3" = "sha256-dUJOOQeh1iBC3W2DWmaHdbs9DnufeZzMOdrrhPFHf70=";
+           "hyprland-0.4.0-beta.2" = "sha256-Vvpb5BzzTjol6UmJjkqymLlARr4gRJaS5k4aONNlcsk=";
           };
         };
         src = pkgs.lib.cleanSource ./.;
@@ -286,6 +286,7 @@
             })
             ({modulesPath, ...}: {
               services.spice-vdagentd.enable = true;
+              services.spice-autorandr.enable = true;
               services.qemuGuest.enable = true;
 
               boot.kernelModules = ["drm" "virtio_gpu"];
@@ -296,13 +297,15 @@
 
               virtualisation = {
                 virtualbox.guest.enable = true;
+                spiceUSBRedirection.enable = true;
                 vmware.guest.enable = true;
-                qemu.options = [
-                  # "-device virtio-vga"
 
-                  "-device virtio-vga-gl"
-                  "-display gtk,gl=on"
+                qemu.options = [
                   "-enable-kvm"
+                  "-cpu host"
+                  # "-device virtio-vga,max_outputs=2"
+                  "-device virtio-vga-gl,max_outputs=2"
+                  "-display gtk,gl=on"
                 ];
               };
               virtualisation.vmVariant = {

@@ -1,4 +1,5 @@
 
+#include <exception>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
