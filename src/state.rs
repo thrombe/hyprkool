@@ -214,6 +214,16 @@ impl State {
         command: Command,
         tx: Option<mpsc::Sender<KEvent>>,
     ) -> Result<()> {
+        self._execute(command, tx).await?;
+        self.update_monitors().await?;
+        Ok(())
+    }
+
+    pub async fn _execute(
+        &mut self,
+        command: Command,
+        tx: Option<mpsc::Sender<KEvent>>,
+    ) -> Result<()> {
         match command {
             Command::MoveRight { cycle, move_window } => {
                 self.move_towards(1, 0, cycle, move_window).await?;
