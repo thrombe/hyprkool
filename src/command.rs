@@ -284,5 +284,4 @@ pub enum Command {
         #[arg(short, long)]
         name: String,
     },
-    ToggleOverview,
 }
