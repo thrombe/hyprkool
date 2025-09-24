@@ -3,8 +3,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
+use hyprland::data::{Animations, BezierIdent};
 use hyprland::event_listener::AsyncEventListener;
-use hyprland::shared::WorkspaceType;
+use hyprland::keyword::Keyword;
+use hyprland::shared::{HyprData, WorkspaceType};
 use serde::{Deserialize, Serialize};
 use tokio::io::BufWriter;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -385,7 +387,36 @@ pub async fn is_plugin_running() -> Result<bool> {
 
 pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
     match _send_plugin_event(anim as _).await {
-        Ok(_) => {}
+        Ok(true) => {}
+        Ok(false) => {
+            let animations = Animations::get_async().await?;
+            let old_anim = animations
+                .0
+                .into_iter()
+                .find(|anim| anim.name == "workspaces")
+                .expect("hyprctl animations is missing `workspaces`");
+            Keyword::set_async(
+                "animation",
+                format!(
+                    "workspaces, {enable}, {speed}, {curve}, {style}",
+                    enable = old_anim.enabled as u8,
+                    speed = old_anim.speed,
+                    curve = match &old_anim.bezier {
+                        BezierIdent::Specified(curve) => curve,
+                        _ => "default",
+                    },
+                    style = match anim {
+                        Animation::None => "none",
+                        Animation::Left => "slide left",
+                        Animation::Right => "slide right",
+                        Animation::Up => "slide top",
+                        Animation::Down => "slide bottom",
+                        Animation::Fade => "fade",
+                    }
+                ),
+            )
+            .await?;
+        }
         Err(err) => {
             println!("could not set workspace animation: {:?}", err);
             return Err(err);
