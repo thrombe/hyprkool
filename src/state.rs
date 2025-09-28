@@ -74,11 +74,10 @@ impl State {
     pub async fn update_monitors(&mut self) -> Result<()> {
         let monitors = Monitors::get_async().await?.into_iter().collect::<Vec<_>>();
 
-        let mut known = HashSet::new();
+        let present = monitors.iter().map(|m| m.name.as_str()).collect::<HashSet<_>>();
+        let known = self.monitors.iter().map(|m| m.monitor.name.clone()).collect::<HashSet<_>>();
 
-        for m in self.monitors.iter() {
-            known.insert(m.monitor.name.clone());
-        }
+        // add any that don't already exist
         for m in monitors.iter() {
             if !known.contains(&m.name) {
                 self.monitors
@@ -86,6 +85,10 @@ impl State {
             }
         }
 
+        // remove any that no longer exist
+        self.monitors.retain(|m| present.contains(m.monitor.name.as_str()));
+
+        // update the monitor attrs with whatever hyprland gave us
         for m in monitors {
             for mm in self.monitors.iter_mut() {
                 if mm.monitor.id == m.id {
