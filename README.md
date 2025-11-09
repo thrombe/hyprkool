@@ -48,7 +48,8 @@ As of Hyprland v0.51.1, a fix has been implemented that makes the Hyprkool C++ p
 | [v0.49.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.49.0) | [v0.7.6](https://github.com/thrombe/hyprkool/releases/tag/0.7.6) |
 | [v0.50.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.0) | [v0.7.7](https://github.com/thrombe/hyprkool/releases/tag/0.7.7) |
 | [v0.50.1](https://github.com/hyprwm/Hyprland/releases/tag/v0.50.1) | [v0.8.0](https://github.com/thrombe/hyprkool/releases/tag/0.8.0), [v0.9.1](https://github.com/thrombe/hyprkool/releases/tag/0.9.1) |
-| [v0.51.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.51.0) | [v0.9.2](https://github.com/thrombe/hyprkool/releases/tag/0.9.2) |
+| [v0.51.0](https://github.com/hyprwm/Hyprland/releases/tag/v0.51.0) | [v0.9.2](https://github.com/thrombe/hyprkool/releases/tag/0.9.1) |
+| [v0.51.1](https://github.com/hyprwm/Hyprland/releases/tag/v0.51.1) | [v0.9.3](https://github.com/thrombe/hyprkool/releases/tag/0.9.3) |
 
 # Installing Cli/Daemon
 <!-- enable when new version of hyprland-rs drops -->
