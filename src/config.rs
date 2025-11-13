@@ -73,6 +73,8 @@ pub struct Config {
 
     pub icon_theme: Option<String>,
     pub window_icon_try_min_size: Option<u16>,
+
+    pub slidefade: bool,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -83,6 +85,7 @@ impl Default for Config {
             daemon: Default::default(),
             icon_theme: None,
             window_icon_try_min_size: None,
+            slidefade: false,
         }
     }
 }

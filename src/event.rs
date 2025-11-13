@@ -375,7 +375,7 @@ pub enum Animation {
     Fade = 5,
 }
 
-pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
+pub async fn set_workspace_anim(anim: Animation, slidefade: bool) -> Result<()> {
     let animations = Animations::get_async().await?;
     let old_anim = animations
         .0
@@ -392,13 +392,17 @@ pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
                 BezierIdent::Specified(curve) => curve,
                 _ => "default",
             },
-            style = match anim {
-                Animation::None => "none",
-                Animation::Left => "slide left",
-                Animation::Right => "slide right",
-                Animation::Up => "slide top",
-                Animation::Down => "slide bottom",
-                Animation::Fade => "fade",
+            style = match (anim, slidefade) {
+                (Animation::None, _) => "none",
+                (Animation::Left, false) => "slide left",
+                (Animation::Left, true) => "slidefade left",
+                (Animation::Right, false) => "slide right",
+                (Animation::Right, true) => "slidefade right",
+                (Animation::Up, false) => "slide top",
+                (Animation::Up, true) => "slidefade top",
+                (Animation::Down, false) => "slide bottom",
+                (Animation::Down, true) => "slidefade bottom",
+                (Animation::Fade, _) => "fade",
             }
         ),
     )

@@ -74,8 +74,15 @@ impl State {
     pub async fn update_monitors(&mut self) -> Result<()> {
         let monitors = Monitors::get_async().await?.into_iter().collect::<Vec<_>>();
 
-        let present = monitors.iter().map(|m| m.name.as_str()).collect::<HashSet<_>>();
-        let known = self.monitors.iter().map(|m| m.monitor.name.clone()).collect::<HashSet<_>>();
+        let present = monitors
+            .iter()
+            .map(|m| m.name.as_str())
+            .collect::<HashSet<_>>();
+        let known = self
+            .monitors
+            .iter()
+            .map(|m| m.monitor.name.clone())
+            .collect::<HashSet<_>>();
 
         // add any that don't already exist
         for m in monitors.iter() {
@@ -86,7 +93,8 @@ impl State {
         }
 
         // remove any that no longer exist
-        self.monitors.retain(|m| present.contains(m.monitor.name.as_str()));
+        self.monitors
+            .retain(|m| present.contains(m.monitor.name.as_str()));
 
         // update the monitor attrs with whatever hyprland gave us
         for m in monitors {
@@ -158,7 +166,7 @@ impl State {
             .current()
             .context("not in a hyprkool workspace")?;
         let ws = self.moved_ws(ws, cycle, x, y);
-        _ = KWorkspace::set_anim(x, y).await;
+        _ = KWorkspace::set_anim(x, y, self.config.slidefade).await;
         self.focused_monitor_mut()
             .move_to(a, ws, move_window)
             .await?;
@@ -180,8 +188,9 @@ impl State {
         } else {
             self.config.activities[0].clone()
         };
+        let slidefade = self.config.slidefade;
         self.focused_monitor_mut()
-            .move_to_activity(a, move_window)
+            .move_to_activity(a, move_window, slidefade)
             .await?;
         Ok(())
     }
@@ -204,7 +213,7 @@ impl State {
         if move_window {
             m.move_focused_window_to_raw(&name).await?;
         }
-        _ = set_workspace_anim(Animation::Fade).await;
+        _ = set_workspace_anim(Animation::Fade, self.config.slidefade).await;
         Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
             &m.monitor.name,
         )))
@@ -251,7 +260,7 @@ impl State {
                 move_window,
                 silent,
             } => {
-                _ = set_workspace_anim(Animation::Fade).await;
+                _ = set_workspace_anim(Animation::Fade, self.config.slidefade).await;
                 if !move_window {
                     Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
                     return Ok(());
@@ -323,8 +332,9 @@ impl State {
                 };
             }
             Command::SwitchToActivity { name, move_window } => {
+                let slidefade = self.config.slidefade;
                 self.focused_monitor_mut()
-                    .move_to_activity(name, move_window)
+                    .move_to_activity(name, move_window, slidefade)
                     .await?;
             }
             Command::FocusWindow { address } => {
@@ -345,7 +355,7 @@ impl State {
                     .context("not in hyprkool activity")?;
                 let ws =
                     KWorkspace::from_ws_part_of_name(&name).context("invalid workspace name")?;
-                _ = set_workspace_anim(Animation::Fade).await;
+                _ = set_workspace_anim(Animation::Fade, self.config.slidefade).await;
                 self.focused_monitor_mut()
                     .move_to(a, ws, move_window)
                     .await?;
@@ -353,7 +363,7 @@ impl State {
             Command::SwitchToWorkspace { name, move_window } => {
                 let a = KActivity::from_ws_name(&name).context("activity not found")?;
                 let ws = KWorkspace::from_ws_name(&name).context("workspace not found")?;
-                _ = set_workspace_anim(Animation::Fade).await;
+                _ = set_workspace_anim(Animation::Fade, self.config.slidefade).await;
                 self.focused_monitor_mut()
                     .move_to(a.name, ws, move_window)
                     .await?;
@@ -472,7 +482,7 @@ impl State {
             Command::SwitchNamedFocus { name, move_window } => {
                 match self.harpoon_map.get(&name).cloned() {
                     Some(ws) => {
-                        _ = set_workspace_anim(Animation::Fade).await;
+                        _ = set_workspace_anim(Animation::Fade, self.config.slidefade).await;
                         self.focused_monitor_mut()
                             .move_to_raw(&ws, move_window)
                             .await?;
@@ -629,7 +639,7 @@ impl State {
 
         let new_ws = self.moved_ws(ws, true, x as _, y as _);
         if new_ws != ws {
-            _ = set_workspace_anim(anim).await;
+            _ = set_workspace_anim(anim, self.config.slidefade).await;
             self.focused_monitor_mut().move_to(a, new_ws, false).await?;
             Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
         }
@@ -739,8 +749,13 @@ impl KMonitor {
         Some((a.name, w))
     }
 
-    async fn move_to_activity(&mut self, activity: String, move_window: bool) -> Result<()> {
-        _ = set_workspace_anim(Animation::Fade).await;
+    async fn move_to_activity(
+        &mut self,
+        activity: String,
+        move_window: bool,
+        slidefade: bool,
+    ) -> Result<()> {
+        _ = set_workspace_anim(Animation::Fade, slidefade).await;
 
         if let Some(ws) = self
             .get_activity_index(&activity)
@@ -883,20 +898,20 @@ impl KWorkspace {
         format!("{}:({} {})", activity, self.x, self.y)
     }
 
-    async fn set_anim(x: i32, y: i32) -> Result<()> {
+    async fn set_anim(x: i32, y: i32, slidefade: bool) -> Result<()> {
         if x > 0 && y == 0 {
-            return set_workspace_anim(Animation::Right).await;
+            return set_workspace_anim(Animation::Right, slidefade).await;
         }
         if x < 0 && y == 0 {
-            return set_workspace_anim(Animation::Left).await;
+            return set_workspace_anim(Animation::Left, slidefade).await;
         }
         if x == 0 && y > 0 {
-            return set_workspace_anim(Animation::Down).await;
+            return set_workspace_anim(Animation::Down, slidefade).await;
         }
         if x == 0 && y < 0 {
-            return set_workspace_anim(Animation::Up).await;
+            return set_workspace_anim(Animation::Up, slidefade).await;
         }
 
-        set_workspace_anim(Animation::Fade).await
+        set_workspace_anim(Animation::Fade, slidefade).await
     }
 }
