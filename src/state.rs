@@ -5,11 +5,9 @@ use anyhow::{anyhow, Context, Result};
 use hyprland::data::FullscreenMode;
 use hyprland::data::Monitor;
 use hyprland::data::Monitors;
-use hyprland::dispatch::MonitorIdentifier;
-use hyprland::dispatch::WorkspaceIdentifierWithSpecial;
 use hyprland::{
     data::{Client, Clients, CursorPosition},
-    dispatch::{Dispatch, DispatchType, WindowIdentifier},
+    dispatch::{Dispatch, DispatchType},
     shared::{HyprData, HyprDataActiveOptional},
 };
 use tokio::sync::broadcast;
@@ -74,8 +72,15 @@ impl State {
     pub async fn update_monitors(&mut self) -> Result<()> {
         let monitors = Monitors::get_async().await?.into_iter().collect::<Vec<_>>();
 
-        let present = monitors.iter().map(|m| m.name.as_str()).collect::<HashSet<_>>();
-        let known = self.monitors.iter().map(|m| m.monitor.name.clone()).collect::<HashSet<_>>();
+        let present = monitors
+            .iter()
+            .map(|m| m.name.as_str())
+            .collect::<HashSet<_>>();
+        let known = self
+            .monitors
+            .iter()
+            .map(|m| m.monitor.name.clone())
+            .collect::<HashSet<_>>();
 
         // add any that don't already exist
         for m in monitors.iter() {
@@ -86,7 +91,8 @@ impl State {
         }
 
         // remove any that no longer exist
-        self.monitors.retain(|m| present.contains(m.monitor.name.as_str()));
+        self.monitors
+            .retain(|m| present.contains(m.monitor.name.as_str()));
 
         // update the monitor attrs with whatever hyprland gave us
         for m in monitors {
@@ -142,12 +148,17 @@ impl State {
         }
 
         // focus the monitor that was focused before moving the other monitor to another ws
-        Dispatch::call_async(DispatchType::Custom(
-            "focusmonitor",
-            &self.focused_monitor_mut().monitor.name.to_string(),
-        ))
-        .await?;
-        Dispatch::call_async(DispatchType::MoveCursor(cursor.x, cursor.y)).await?;
+        let focus_cmd = format!(
+            "hl.dsp.focus({{ monitor = '{}' }})",
+            self.focused_monitor_mut().monitor.name
+        );
+        Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
+
+        let cursor_cmd = format!(
+            "hl.dsp.cursor.move({{ x = {}, y = {} }})",
+            cursor.x, cursor.y
+        );
+        Dispatch::call_async(DispatchType::Custom(&cursor_cmd, "")).await?;
 
         Ok(())
     }
@@ -205,10 +216,9 @@ impl State {
             m.move_focused_window_to_raw(&name).await?;
         }
         _ = set_workspace_anim(Animation::Fade).await;
-        Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
-            &m.monitor.name,
-        )))
-        .await?;
+
+        let focus_cmd = format!("hl.dsp.focus({{ monitor = '{}' }})", m.monitor.name);
+        Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
         Ok(())
     }
 
@@ -253,7 +263,8 @@ impl State {
             } => {
                 _ = set_workspace_anim(Animation::Fade).await;
                 if !move_window {
-                    Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name))).await?;
+                    let toggle_cmd = format!("hl.dsp.workspace.toggle_special('{}')", name);
+                    Dispatch::call_async(DispatchType::Custom(&toggle_cmd, "")).await?;
                     return Ok(());
                 }
                 let window = Client::get_active_async()
@@ -280,45 +291,54 @@ impl State {
                             self.focused_monitor_mut()
                                 .move_focused_window_to_raw(&active_workspace)
                                 .await?;
-                            Dispatch::call_async(DispatchType::Custom(
-                                "focusworkspaceoncurrentmonitor",
-                                &active_workspace,
-                            ))
-                            .await?;
-                            Dispatch::call_async(DispatchType::FocusWindow(
-                                WindowIdentifier::Address(window.address),
-                            ))
-                            .await?;
+
+                            let focus_cmd = format!("hl.dsp.focus({{workspace = '{active_workspace}', on_current_monitor = true }})");
+                            Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
+
+                            let addr_str = window.address.to_string();
+                            let addr_str = if addr_str.starts_with("0x") {
+                                addr_str
+                            } else {
+                                format!("0x{}", addr_str)
+                            };
+                            let win_cmd =
+                                format!("hl.dsp.focus({{ window = 'address:{}' }})", addr_str);
+                            Dispatch::call_async(DispatchType::Custom(&win_cmd, "")).await?;
                         } else {
-                            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
-                                WorkspaceIdentifierWithSpecial::Name(&active_workspace),
-                                None,
-                            ))
-                            .await?;
+                            let move_cmd = format!(
+                                "hl.dsp.window.move({{ workspace = '{}', follow = false }})",
+                                active_workspace
+                            );
+                            Dispatch::call_async(DispatchType::Custom(&move_cmd, "")).await?;
                         }
                     } else {
                         self.focused_monitor_mut()
                             .move_focused_window_to_raw(&active_workspace)
                             .await?;
-                        Dispatch::call_async(DispatchType::Custom(
-                            "focusworkspaceoncurrentmonitor",
-                            &active_workspace,
-                        ))
-                        .await?;
-                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
-                            window.address,
-                        )))
-                        .await?;
+
+                        let focus_cmd = format!("hl.dsp.focus({{workspace = '{active_workspace}', on_current_monitor = true }})");
+                        Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
+
+                        let addr_str = window.address.to_string();
+                        let addr_str = if addr_str.starts_with("0x") {
+                            addr_str
+                        } else {
+                            format!("0x{}", addr_str)
+                        };
+                        let win_cmd =
+                            format!("hl.dsp.focus({{ window = 'address:{}' }})", addr_str);
+                        Dispatch::call_async(DispatchType::Custom(&win_cmd, "")).await?;
                     }
                 } else {
-                    Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
-                        WorkspaceIdentifierWithSpecial::Special(Some(&name)),
-                        None,
-                    ))
-                    .await?;
+                    let move_cmd = format!(
+                        "hl.dsp.window.move({{ workspace = 'special:{}', follow = false }})",
+                        name
+                    );
+                    Dispatch::call_async(DispatchType::Custom(&move_cmd, "")).await?;
+
                     if !silent {
-                        Dispatch::call_async(DispatchType::ToggleSpecialWorkspace(Some(name)))
-                            .await?;
+                        let toggle_cmd = format!("hl.dsp.workspace.toggle_special('{}')", name);
+                        Dispatch::call_async(DispatchType::Custom(&toggle_cmd, "")).await?;
                     }
                 };
             }
@@ -331,10 +351,15 @@ impl State {
                 let windows = Clients::get_async().await?;
                 for w in windows {
                     if w.address.to_string() == address {
-                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
-                            w.address,
-                        )))
-                        .await?;
+                        let addr_str = w.address.to_string();
+                        let addr_str = if addr_str.starts_with("0x") {
+                            addr_str
+                        } else {
+                            format!("0x{}", addr_str)
+                        };
+                        let win_cmd =
+                            format!("hl.dsp.focus({{ window = 'address:{}' }})", addr_str);
+                        Dispatch::call_async(DispatchType::Custom(&win_cmd, "")).await?;
                     }
                 }
             }
@@ -374,10 +399,9 @@ impl State {
                     m.move_focused_window_to_raw(&m.monitor.active_workspace.name)
                         .await?;
                 }
-                Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
-                    &m.monitor.name,
-                )))
-                .await?;
+
+                let focus_cmd = format!("hl.dsp.focus({{ monitor = '{}' }})", m.monitor.name);
+                Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
             }
             Command::SwapMonitorsActiveWorkspace {
                 monitor_1,
@@ -431,10 +455,6 @@ impl State {
                         .move_to_raw(&ws1, move_window)
                         .await?;
                 } else {
-                    // if move_window {
-                    //     return Err(anyhow!("--move_window is only supported when one of the monitors is focused"));
-                    // }
-
                     let m_1 = self
                         .monitors
                         .iter_mut()
@@ -442,10 +462,11 @@ impl State {
                         .expect("won't get here if it's none");
                     m_1.move_to_raw(&ws2, false).await?;
 
-                    Dispatch::call_async(DispatchType::FocusMonitor(MonitorIdentifier::Name(
-                        &self.focused_monitor_mut().monitor.name,
-                    )))
-                    .await?;
+                    let focus_cmd = format!(
+                        "hl.dsp.focus({{ monitor = '{}' }})",
+                        self.focused_monitor_mut().monitor.name
+                    );
+                    Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
                 }
             }
             Command::SetNamedFocus { name } => {
@@ -517,11 +538,20 @@ impl State {
                         .min_by_key(|c| c.focus_history_id);
                     if let Some(w) = w {
                         let c = CursorPosition::get_async().await?;
-                        Dispatch::call_async(DispatchType::FocusWindow(WindowIdentifier::Address(
-                            w.address.clone(),
-                        )))
-                        .await?;
-                        Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
+
+                        let addr_str = w.address.to_string();
+                        let addr_str = if addr_str.starts_with("0x") {
+                            addr_str
+                        } else {
+                            format!("0x{}", addr_str)
+                        };
+                        let win_cmd =
+                            format!("hl.dsp.focus({{ window = 'address:{}' }})", addr_str);
+                        Dispatch::call_async(DispatchType::Custom(&win_cmd, "")).await?;
+
+                        let cursor_cmd =
+                            format!("hl.dsp.cursor.move({{ x = {}, y = {} }})", c.x, c.y);
+                        Dispatch::call_async(DispatchType::Custom(&cursor_cmd, "")).await?;
                     }
                 }
             }
@@ -631,7 +661,9 @@ impl State {
         if new_ws != ws {
             _ = set_workspace_anim(anim).await;
             self.focused_monitor_mut().move_to(a, new_ws, false).await?;
-            Dispatch::call_async(DispatchType::MoveCursor(c.x, c.y)).await?;
+
+            let cursor_cmd = format!("hl.dsp.cursor.move({{ x = {}, y = {} }})", c.x, c.y);
+            Dispatch::call_async(DispatchType::Custom(&cursor_cmd, "")).await?;
         }
         Ok(())
     }
@@ -770,17 +802,15 @@ impl KMonitor {
         }
 
         if !self.monitor.focused {
-            Dispatch::call_async(DispatchType::Custom(
-                "focusmonitor",
-                &format!("{}", self.monitor.id),
-            ))
-            .await?;
+            let focus_cmd = format!("hl.dsp.focus({{ monitor = {} }})", self.monitor.id);
+            Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
         }
-        Dispatch::call_async(DispatchType::Custom(
-            "focusworkspaceoncurrentmonitor",
-            &format!("name:{}", ws_name),
-        ))
-        .await?;
+
+        let ws_cmd = format!(
+            "hl.dsp.focus({{workspace = 'name:{}', on_current_monitor = true }})",
+            ws_name
+        );
+        Dispatch::call_async(DispatchType::Custom(&ws_cmd, "")).await?;
 
         Ok(())
     }
@@ -802,28 +832,26 @@ impl KMonitor {
         }
 
         if !self.monitor.focused {
-            Dispatch::call_async(DispatchType::Custom(
-                "focusmonitor",
-                &format!("{}", self.monitor.id),
-            ))
-            .await?;
+            let focus_cmd = format!("hl.dsp.focus({{ monitor = {} }})", self.monitor.id);
+            Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
         }
-        Dispatch::call_async(DispatchType::Custom(
-            "focusworkspaceoncurrentmonitor",
-            &format!("name:{}", new_ws.name(&activity)),
-        ))
-        .await?;
+
+        let ws_cmd = format!(
+            "hl.dsp.focus({{workspace = 'name:{}', on_current_monitor = true }})",
+            new_ws.name(&activity)
+        );
+        Dispatch::call_async(DispatchType::Custom(&ws_cmd, "")).await?;
 
         Ok(())
     }
 
     async fn move_focused_window_to(&self, activity: &str, ws: KWorkspace) -> Result<()> {
         if let Some(_window) = Client::get_active_async().await? {
-            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
-                WorkspaceIdentifierWithSpecial::Name(&ws.name(activity)),
-                None,
-            ))
-            .await?;
+            let move_cmd = format!(
+                "hl.dsp.window.move({{ workspace = '{}', follow = false }})",
+                ws.name(activity)
+            );
+            Dispatch::call_async(DispatchType::Custom(&move_cmd, "")).await?;
         }
 
         Ok(())
@@ -831,11 +859,11 @@ impl KMonitor {
 
     async fn move_focused_window_to_raw(&self, ws: &str) -> Result<()> {
         if let Some(_window) = Client::get_active_async().await? {
-            Dispatch::call_async(DispatchType::MoveToWorkspaceSilent(
-                WorkspaceIdentifierWithSpecial::Name(ws),
-                None,
-            ))
-            .await?;
+            let move_cmd = format!(
+                "hl.dsp.window.move({{ workspace = '{}', follow = false }})",
+                ws
+            );
+            Dispatch::call_async(DispatchType::Custom(&move_cmd, "")).await?;
         }
 
         Ok(())
