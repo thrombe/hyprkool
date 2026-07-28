@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use hyprland::data::{Animations, BezierIdent};
+use hyprland::dispatch::{Dispatch, DispatchType};
 use hyprland::event_listener::AsyncEventListener;
-use hyprland::keyword::Keyword;
 use hyprland::shared::{HyprData, WorkspaceType};
 use serde::{Deserialize, Serialize};
 use tokio::io::BufWriter;
@@ -382,11 +382,9 @@ pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
         .into_iter()
         .find(|anim| anim.name == "workspaces")
         .expect("hyprctl animations is missing `workspaces`");
-    Keyword::set_async(
-        "animation",
-        format!(
-            "workspaces, {enable}, {speed}, {curve}, {style}",
-            enable = old_anim.enabled as u8,
+    let anim_cmd = format!(
+        "hl.animation({{ leaf = \"workspaces\", enabled = {enable}, speed = {speed}, bezier = \"{curve}\", style = \"{style}\" }})",
+        enable = old_anim.enabled,
             speed = old_anim.speed,
             curve = match &old_anim.bezier {
                 BezierIdent::Specified(curve) => curve,
@@ -400,8 +398,7 @@ pub async fn set_workspace_anim(anim: Animation) -> Result<()> {
                 Animation::Down => "slide bottom",
                 Animation::Fade => "fade",
             }
-        ),
-    )
-    .await?;
+    );
+    Dispatch::call_async(DispatchType::Custom(&anim_cmd, "")).await?;
     Ok(())
 }
