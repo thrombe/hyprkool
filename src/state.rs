@@ -292,7 +292,7 @@ impl State {
                                 .move_focused_window_to_raw(&active_workspace)
                                 .await?;
 
-                            let focus_cmd = format!("hl.dsp.focus({{workspace = '{active_workspace}', on_current_monitor = true }})");
+                            let focus_cmd = format!("hl.dsp.focus({{workspace = 'name:{active_workspace}', on_current_monitor = true }})");
                             Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
 
                             let addr_str = window.address.to_string();
@@ -306,7 +306,7 @@ impl State {
                             Dispatch::call_async(DispatchType::Custom(&win_cmd, "")).await?;
                         } else {
                             let move_cmd = format!(
-                                "hl.dsp.window.move({{ workspace = '{}', follow = false }})",
+                                "hl.dsp.window.move({{ workspace = 'name:{}', follow = false }})",
                                 active_workspace
                             );
                             Dispatch::call_async(DispatchType::Custom(&move_cmd, "")).await?;
@@ -316,7 +316,7 @@ impl State {
                             .move_focused_window_to_raw(&active_workspace)
                             .await?;
 
-                        let focus_cmd = format!("hl.dsp.focus({{workspace = '{active_workspace}', on_current_monitor = true }})");
+                        let focus_cmd = format!("hl.dsp.focus({{workspace = 'name:{active_workspace}', on_current_monitor = true }})");
                         Dispatch::call_async(DispatchType::Custom(&focus_cmd, "")).await?;
 
                         let addr_str = window.address.to_string();
@@ -848,7 +848,7 @@ impl KMonitor {
     async fn move_focused_window_to(&self, activity: &str, ws: KWorkspace) -> Result<()> {
         if let Some(_window) = Client::get_active_async().await? {
             let move_cmd = format!(
-                "hl.dsp.window.move({{ workspace = '{}', follow = false }})",
+                "hl.dsp.window.move({{ workspace = 'name:{}', follow = false }})",
                 ws.name(activity)
             );
             Dispatch::call_async(DispatchType::Custom(&move_cmd, "")).await?;
@@ -860,7 +860,7 @@ impl KMonitor {
     async fn move_focused_window_to_raw(&self, ws: &str) -> Result<()> {
         if let Some(_window) = Client::get_active_async().await? {
             let move_cmd = format!(
-                "hl.dsp.window.move({{ workspace = '{}', follow = false }})",
+                "hl.dsp.window.move({{ workspace = 'name:{}', follow = false }})",
                 ws
             );
             Dispatch::call_async(DispatchType::Custom(&move_cmd, "")).await?;
