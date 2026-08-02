@@ -10,26 +10,7 @@
   };
 
   outputs = inputs: let
-    packages = inputs.flake-utils.lib.eachDefaultSystem (system: let
-      flakePackage = flake: package: flake.packages."${system}"."${package}";
-      flakeDefaultPackage = flake: flakePackage flake "default";
-
-      pkgs = import inputs.nixpkgs {
-        inherit system;
-        overlays = [
-          (self: super: {
-            hyprland = flakeDefaultPackage inputs.hyprland;
-          })
-        ];
-      };
-
-      # - [Get-flake: builtins.getFlake without the restrictions - Announcements - NixOS Discourse](https://discourse.nixos.org/t/get-flake-builtins-getflake-without-the-restrictions/17662)
-      # hyprland-flake = import "${inputs.hyprland}/flake.nix";
-      # hyprland-outputs = hyprland-flake.outputs {
-      #   nixpkgs = inputs.nixpkgs-unstable;
-      # };
-      # hyprland-outputs = inputs.hyprland;
-
+    packages' = pkgs: let
       meta = {
         homepage = manifest.repository;
         description = manifest.description;
@@ -105,6 +86,33 @@
           mkdir -p $out
           echo "This package is a placeholder. See the warning during evaluation." > $out/README.md
         '');
+
+      stdenv = pkgs.clangStdenv;
+    in {
+      inherit hyprkool-rs hyprkool-plugin hyprkool-plugin-dev;
+    };
+
+    packages = inputs.flake-utils.lib.eachDefaultSystem (system: let
+      flakePackage = flake: package: flake.packages."${system}"."${package}";
+      flakeDefaultPackage = flake: flakePackage flake "default";
+
+      pkgs = import inputs.nixpkgs {
+        inherit system;
+        overlays = [
+          (self: super: {
+            hyprland = flakeDefaultPackage inputs.hyprland;
+          })
+        ];
+      };
+
+      inherit (packages' pkgs) hyprkool-rs hyprkool-plugin hyprkool-plugin-dev;
+
+      # - [Get-flake: builtins.getFlake without the restrictions - Announcements - NixOS Discourse](https://discourse.nixos.org/t/get-flake-builtins-getflake-without-the-restrictions/17662)
+      # hyprland-flake = import "${inputs.hyprland}/flake.nix";
+      # hyprland-outputs = hyprland-flake.outputs {
+      #   nixpkgs = inputs.nixpkgs-unstable;
+      # };
+      # hyprland-outputs = inputs.hyprland;
 
       fhs = pkgs.buildFHSEnv {
         name = "fhs-shell";
@@ -229,7 +237,9 @@
           '';
         };
     });
-    vm = {
+    outputs = {
+      overlays.default = self: _super: packages' self;
+
       nixosConfigurations.test = let
         system = "x86_64-linux";
         username = "kool";
@@ -358,5 +368,5 @@
         };
     };
   in
-    inputs.nixpkgs.lib.attrsets.recursiveUpdate packages vm;
+    inputs.nixpkgs.lib.attrsets.recursiveUpdate packages outputs;
 }
